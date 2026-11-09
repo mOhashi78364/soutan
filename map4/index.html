@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>那須旅プラス - まだ帰りたくないあなたのためのルートガイド</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet.js (Map Library) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+        .font-serif-title {
+            font-family: 'Playfair Display', 'Noto Sans JP', serif;
+        }
+        /* スクロールバー非表示 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* 地図上のカスタムスポットラベルのスタイル */
+        .custom-spot-label {
+            background: rgba(255, 255, 255, 0.98);
+            border: 2px solid #059669; /* emerald-600 */
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 800;
+            color: #064e3b; /* emerald-950 */
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
+            white-space: nowrap;
+        }
+        .custom-spot-label::before {
+            border-top-color: #059669 !important;
+        }
+        
+        /* 現在地ラベルのスタイル */
+        .custom-start-label {
+            background: rgba(255, 255, 255, 0.98);
+            border: 2px solid #3b82f6; /* blue-500 */
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 800;
+            color: #1e3a8a; /* blue-950 */
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+            white-space: nowrap;
+        }
+        .custom-start-label::before {
+            border-top-color: #3b82f6 !important;
+        }
+
+        /* 動く点線（光る流れ星ナビ）アニメーション */
+        @keyframes routeDash {
+            to {
+                stroke-dashoffset: -40;
+            }
+        }
+        .animated-route-line {
+            stroke-dasharray: 12, 16; /* 点線の長さと間隔 */
+            animation: routeDash 1.2s linear infinite; /* 流れをスムーズに表現 */
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 min-h-screen flex flex-col overflow-x-hidden">
+
+    <!-- アプリコンテナ -->
+    <div id="app" class="flex-grow flex flex-col max-w-md mx-auto w-full bg-white shadow-2xl relative min-h-screen overflow-hidden">
+        
+        <!-- ヘッダー（2画面目以降表示） -->
+        <header id="app-header" class="hidden bg-white/90 backdrop-blur-md border-b border-stone-200 py-3 px-4 flex items-center justify-between sticky top-0 z-50">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <h1 class="text-base font-bold tracking-tight text-stone-800">那須旅プラス</h1>
+            </div>
+            <button onclick="resetToTop()" class="text-xs flex items-center gap-1 text-stone-500 hover:text-stone-800 transition">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                最初からやり直す
+            </button>
+        </header>
+
+        <!-- 1. TOP画面 -->
+        <section id="step-top" class="flex-grow flex flex-col justify-between relative transition-all duration-500 ease-in-out">
+            <!-- メインビジュアル背景 -->
+            <div class="absolute inset-0 z-0">
+                <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1000&q=80" alt="那須の自然" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/60 to-black/20"></div>
+            </div>
+
+            <!-- コンテンツ -->
+            <div class="z-10 px-6 pt-12 text-white">
+                <div class="inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 shadow-sm">
+                    <i data-lucide="sparkles" class="w-3 h-3"></i> Nasu-Shiobara & Nasu
+                </div>
+                <h2 class="text-3xl font-black leading-tight tracking-wide mb-3 font-serif-title">
+                    まだ帰りたくない<br>あなたへ。
+                </h2>
+                <p class="text-sm text-stone-200 font-light leading-relaxed mb-1">
+                    今の気分にぴったりの那須塩原を、あと少しだけプラスしてみませんか？
+                </p>
+                <p class="text-xs text-emerald-300">
+                    現在地から、残り時間内にゆったり戻れる特別ルートを提案します。
+                </p>
+            </div>
+
+            <!-- 操作・入力エリア -->
+            <div class="z-10 bg-white/95 backdrop-blur-md p-6 rounded-t-3xl shadow-2xl border-t border-white/20 text-stone-800">
+                
+                <!-- 帰る手段の選択 -->
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    今日の「帰る手段」は？
+                </h3>
+                <div class="grid grid-cols-2 gap-3 mb-5">
+                    <button type="button" id="goal-shinkansen" onclick="selectGoalType('shinkansen')" class="py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-emerald-50 border-emerald-500 text-emerald-900 font-bold">
+                        <i data-lucide="train" class="w-5 h-5 text-emerald-600"></i>
+                        <span class="text-xs">新幹線・電車</span>
+                        <span class="text-[9px] text-emerald-700 font-normal">那須塩原駅ゴール</span>
+                    </button>
+                    <button type="button" id="goal-car" onclick="selectGoalType('car')" class="py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-white border-stone-200 text-stone-600 hover:border-emerald-300">
+                        <i data-lucide="car" class="w-5 h-5 text-stone-500"></i>
+                        <span class="text-xs">自家用車・高速</span>
+                        <span class="text-[9px] text-stone-400 font-normal">那須IC入口ゴール</span>
+                    </button>
+                </div>
+
+                <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    あとどれくらい、那須に居られますか？
+                </h3>
+                
+                <!-- 精密な時間選択UI -->
+                <div class="bg-stone-50 border border-stone-200 rounded-2xl p-4 mb-5">
+                    <div class="text-center mb-3">
+                        <span id="display-duration" class="text-3xl font-black text-emerald-700 font-serif-title">4時間 00分</span>
+                        <span class="text-[11px] text-stone-500 block mt-1" id="display-duration-desc">のんびりスポットを巡るのに最適です</span>
+                    </div>
+
+                    <!-- スライダー -->
+                    <input type="range" id="duration-slider" min="60" max="720" step="15" value="240" oninput="updateDurationFromSlider(this.value)" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 mb-4">
+                    
+                    <!-- 微調整ボタン -->
+                    <div class="flex justify-between items-center gap-2">
+                        <button type="button" onclick="adjustDuration(-15)" class="flex-1 py-1.5 bg-white border border-stone-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-stone-600 transition flex items-center justify-center gap-1">
+                            <i data-lucide="minus" class="w-3.5 h-3.5"></i> 15分
+                        </button>
+                        <button type="button" onclick="adjustDuration(15)" class="flex-1 py-1.5 bg-white border border-stone-200 hover:border-emerald-500 rounded-lg text-xs font-bold text-stone-600 transition flex items-center justify-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> 15分
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GPS許諾について -->
+                <div class="flex items-start gap-2 bg-stone-50 p-3 rounded-lg border border-stone-200 mb-5">
+                    <i data-lucide="navigation" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                    <p class="text-[11px] text-stone-500 leading-relaxed">
+                        現在地（GPS）から那須塩原駅・那須IC方面へ向かう、帰り道にぴったりの美味しい＆楽しい一筆書きルートを自動計算します。
+                    </p>
+                </div>
+
+                <button onclick="startDiagnosis()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-600/20 transition transform active:scale-[0.98] flex items-center justify-center gap-2">
+                    旅の気分を診断してスタート
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- 2. 診断＆質問画面 -->
+        <section id="step-quiz" class="hidden flex-grow flex flex-col justify-between p-6 bg-stone-50 transition-all duration-500 ease-in-out">
+            <!-- 進行度 -->
+            <div>
+                <div class="flex justify-between items-center mb-6">
+                    <span class="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2.5 py-1 rounded-full" id="quiz-progress-text">質問 1 / 3</span>
+                    <div class="w-24 bg-stone-200 h-2 rounded-full overflow-hidden">
+                        <div id="quiz-progress-bar" class="bg-emerald-500 h-full transition-all duration-300" style="width: 33%;"></div>
+                    </div>
+                </div>
+
+                <!-- 質問カード -->
+                <div id="quiz-container" class="space-y-4">
+                    <!-- JavaScriptで動的に挿入されます -->
+                </div>
+            </div>
+
+            <!-- フッター注記 -->
+            <div class="text-center text-xs text-stone-400 mt-8">
+                直感でサクッと選んでみてください（目安5秒）
+            </div>
+        </section>
+
+        <!-- 3. GPS取得中ローディング画面 -->
+        <section id="step-loading" class="hidden flex-grow flex flex-col items-center justify-center p-6 bg-emerald-950 text-white text-center overflow-y-auto">
+            <div class="relative w-24 h-24 mb-6 shrink-0">
+                <!-- 波紋アニメーション -->
+                <div class="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping"></div>
+                <div class="absolute inset-2 rounded-full bg-emerald-400/50 animate-pulse"></div>
+                <div class="absolute inset-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
+                    <i data-lucide="map-pin" class="w-8 h-8 text-white animate-bounce"></i>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold mb-2" id="loading-title">位置情報を取得しています</h3>
+            <p class="text-xs text-emerald-200/80 max-w-xs leading-relaxed mb-4" id="loading-status">
+                人工衛星・ネットワークから現在位置を探しています...<br>
+                <span class="text-[10px] opacity-75">※画面上に許可ダイアログが出た場合は「許可」を選択してください</span>
+            </p>
+
+            <!-- 手動選択レスキューボタン -->
+            <div id="gps-rescue-container" class="w-full max-w-xs bg-emerald-900/80 p-4 rounded-xl border border-emerald-700/80 my-2 shadow-xl">
+                <p class="text-[11px] font-bold text-amber-300 mb-2 flex items-center justify-center gap-1">
+                    <i data-lucide="compass" class="w-3.5 h-3.5"></i> 出発地点を一覧から選択できます
+                </p>
+                <p class="text-[10px] text-emerald-200/90 mb-3 leading-relaxed">
+                    位置情報が取得できない場合や、特定の場所からのルートを作成したい方は以下をタップしてください：
+                </p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="manuallySetStart(36.9317, 140.0210, '那須塩原駅')" class="bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 border border-emerald-600/50 text-[11px] font-bold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 text-white">
+                        <i data-lucide="train" class="w-3 h-3 text-emerald-300"></i> 那須塩原駅
+                    </button>
+                    <button onclick="manuallySetStart(37.0145, 140.0245, '那須IC周辺')" class="bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 border border-emerald-600/50 text-[11px] font-bold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 text-white">
+                        <i data-lucide="car" class="w-3 h-3 text-emerald-300"></i> 那須IC周辺
+                    </button>
+                    <button onclick="manuallySetStart(36.9701, 140.0558, '黒磯駅前')" class="bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 border border-emerald-600/50 text-[11px] font-bold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 text-white">
+                        <i data-lucide="building" class="w-3 h-3 text-emerald-300"></i> 黒磯駅前
+                    </button>
+                    <button onclick="manuallySetStart(37.0818, 140.0001, '那須高原ビジターC')" class="bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 border border-emerald-600/50 text-[11px] font-bold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 text-white">
+                        <i data-lucide="trees" class="w-3 h-3 text-emerald-300"></i> ビジターセンター
+                    </button>
+                    <button onclick="manuallySetStart(36.9700, 139.8250, '塩原温泉バスターミナル')" class="bg-emerald-800 hover:bg-emerald-700 active:bg-emerald-900 border border-emerald-600/50 text-[11px] font-bold py-2 px-2 rounded-lg transition col-span-2 flex items-center justify-center gap-1 text-white">
+                        <i data-lucide="bus" class="w-3 h-3 text-emerald-300"></i> 塩原温泉バスターミナル
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. アクション画面（地図＆ナビゲーション） -->
+        <section id="step-action" class="hidden flex-grow flex flex-col h-full overflow-hidden relative">
+            
+            <!-- 上部：地図エリア -->
+            <div class="relative h-[38vh] w-full border-b border-stone-200 shrink-0">
+                <div id="map" class="w-full h-full z-10"></div>
+                
+                <!-- 各種オーバーレイボタン -->
+                <div class="absolute bottom-3 left-3 z-20 flex flex-col gap-1.5">
+                    <button onclick="recenterMap()" class="bg-white/95 p-2 rounded-lg shadow-md border border-stone-200 text-stone-700 hover:text-emerald-600 transition" title="全体を画面に収める">
+                        <i data-lucide="crosshair" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- 地図ロック解除トグル -->
+                <div class="absolute bottom-3 right-3 z-20">
+                    <button id="btn-map-lock" onclick="toggleMapLock()" class="bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg shadow-md flex items-center gap-1.5 transition active:scale-95">
+                        <i data-lucide="lock" class="w-3.5 h-3.5" id="icon-map-lock"></i>
+                        <span id="text-map-lock">地図を操作する</span>
+                    </button>
+                </div>
+
+                <div class="absolute top-3 right-3 z-20 bg-emerald-900/90 backdrop-blur text-white text-[11px] font-semibold py-1 px-2.5 rounded-full shadow-md flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span id="active-segment-label">現在地 ➔ スポット1</span>
+                </div>
+            </div>
+
+            <!-- 下部：タイムラインとルート詳細 -->
+            <div class="flex-grow flex flex-col overflow-y-auto no-scrollbar bg-stone-50 pb-20">
+                
+                <!-- ルート紹介ヘッダー -->
+                <div class="p-4 bg-white border-b border-stone-100 shadow-sm shrink-0">
+                    <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-bold mb-1">
+                        <span id="badge-persona" class="bg-emerald-50 text-emerald-750 px-2 py-0.5 rounded border border-emerald-100">トレンド派に人気</span>
+                        <span id="badge-style" class="bg-blue-50 text-blue-750 px-2 py-0.5 rounded border border-blue-100">バランス重視</span>
+                        <span id="badge-duration" class="bg-stone-100 text-stone-600 px-2 py-0.5 rounded">約4時間コース</span>
+                    </div>
+                    <h2 id="route-title" class="text-lg font-black text-stone-800 leading-snug">
+                        夕暮れの絶景と、隠れ家カフェで自分を労わるご褒美ルート
+                    </h2>
+                </div>
+
+                <!-- タイムライン -->
+                <div class="p-4 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                            <i data-lucide="milestone" class="w-3.5 h-3.5"></i> ROUTE TIMELINE
+                        </h3>
+                        <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                            区間タップでナビを切替
+                        </span>
+                    </div>
+
+                    <!-- タイムラインの親要素 -->
+                    <div id="timeline-container" class="relative pl-6 border-l-2 border-dashed border-emerald-200 space-y-6 ml-2.5 mt-2">
+                        <!-- 動的に挿入 -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 最下部：固定アクションバー -->
+            <div class="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-stone-200 p-3 flex gap-2 z-30">
+                <button onclick="recalculateRoute()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 p-3.5 rounded-xl transition flex items-center justify-center" title="別のルートを再提案">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-google-map" class="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                    <span>このルートでナビを開始する</span>
+                </button>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- JavaScriptコード -->
+    <script>
+        // ----------------------------------------------------
+        // データ定義：那須・那須塩原エリアの観光スポット（カテゴリ・食事属性を厳格化）
+        // ----------------------------------------------------
+        const SPOTS_DATABASE = [
+            // --- ★ グルメ・食事処＆本格カフェ ★ ---
+            {
+                id: "penny_lane",
+                name: "ベーカリー ペニーレイン 那須店",
+                lat: 37.0691,
+                lng: 140.0152,
+                desc: "ビートルズの世界観と英国調のアンティークな内装が迎えてくれる絶品パン＆レストラン。",
+                reason: "焼き立ての「ブルーベリーブレッド」をはじめとする名物パンや本格ハンバーグ等のレストランメニューを満喫できます！",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 60
+            },
+            {
+                id: "mr_beef",
+                name: "MR.BEEF Dining (ミスタービーフ)",
+                lat: 37.0385,
+                lng: 140.0125,
+                desc: "アメリカ西海岸のステーキハウスをイメージした本格肉料理店。極上赤身ステーキをダイナミックに楽しめます。",
+                reason: "ジューシーで旨味たっぷりの本格アメリカンステーキ！お腹をしっかり満たしたい食事タイムに最適です。",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "active",
+                area: "nasu",
+                stayTime: 60
+            },
+            {
+                id: "kobaya_shokudo",
+                name: "スープ入り焼きそば こばや食堂",
+                lat: 36.9721,
+                lng: 139.8242,
+                desc: "塩原温泉郷のご当地B級グルメ「スープ入り焼きそば」の名店。醤油スープの中にスパイシーなソース焼きそばが泳ぐ絶品食堂。",
+                reason: "香ばしいソースと旨味たっぷりのスープが絶妙に調和！しっかりランチ・夕食に満足できるソウルフードです。",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 45
+            },
+            {
+                id: "kamahiko_ramen",
+                name: "釜彦 (かまひこ)",
+                lat: 36.9658,
+                lng: 139.8188,
+                desc: "こばや食堂と並ぶスープ入り焼きそばの老舗。シャキシャキキャベツとスパイシーなソース味が癖になる人気店。",
+                reason: "炒めたソースの香ばしい風味が抜群。温かいスープで満腹になれる伝統の味覚です。",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 45
+            },
+            {
+                id: "kanel_bread",
+                name: "Kanel Bread (カネルブレッド)",
+                lat: 36.9701,
+                lng: 140.0560,
+                desc: "黒磯駅前。国産小麦と天然酵母にこだわり、驚くほど美味しいパンがずらりと並ぶベーカリーショップ。",
+                reason: "焼きたてのハード系パンや惣菜パンでお腹を満たせます。テイクアウトやイートインにも最適。",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "trend",
+                area: "shiobara",
+                stayTime: 30
+            },
+            {
+                id: "chus_nasu",
+                name: "Chus (チャウス)",
+                lat: 36.9723,
+                lng: 140.0525,
+                desc: "「那須の大きな食卓」がテーマのカフェ＆マルシェ。地産地消の美味しいプレートランチやカフェメニューが揃います。",
+                reason: "那須の新鮮食材を使ったこだわりランチ＆カフェが楽しめ、地元の特産品・お土産もお買い物できます。",
+                category: "gourmet",
+                subCategory: "meal",
+                energy: "trend",
+                area: "shiobara",
+                stayTime: 50
+            },
+            {
+                id: "butter_no_itoko",
+                name: "バターのいとこ (GOOD NEWS)",
+                lat: 37.0268,
+                lng: 140.0195,
+                desc: "大人気銘菓『バターのいとこ』のフラッグシップ店。限定フレーバーやカフェドリンク、ドーナツ等が楽しめます。",
+                reason: "サクッ・フワッ・トロッの独特な食感スイーツと淹れたてコーヒーで最高のおやつタイムを過ごせます。",
+                category: "gourmet",
+                subCategory: "cafe_sweets",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 45
+            },
+            {
+                id: "shozo_nasu_cafe",
+                name: "NASU SHOZO CAFE (那須街道店)",
+                lat: 37.0315,
+                lng: 140.0275,
+                desc: "木漏れ日が差し込むオープンテラスが魅力の憧れカフェ。スコーンやこだわり珈琲が有名です。",
+                reason: "焼きたてスコーンと深い味わいのコーヒー。心地よい空気とともにのんびりお喋りする贅沢なカフェ時間です。",
+                category: "gourmet",
+                subCategory: "cafe_sweets",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 60
+            },
+            {
+                id: "shozo_cafe",
+                name: "1988 CAFE SHOZO (黒磯本店)",
+                lat: 36.9712,
+                lng: 140.0543,
+                desc: "日本のお洒落カフェカルチャーの先駆けであり、全国のカフェ好きが訪れる名店。",
+                reason: "アンティークな空間と流れる心地よい音楽。美味しいスコーンとアイスカフェオレでほっと一息つけます。",
+                category: "gourmet",
+                subCategory: "cafe_sweets",
+                energy: "trend",
+                area: "shiobara",
+                stayTime: 60
+            },
+            {
+                id: "nasu_cheese_garden",
+                name: "チーズガーデン 那須本店",
+                lat: 37.0163,
+                lng: 140.0437,
+                desc: "「御用邸チーズケーキ」の総本店。モダンなカフェテラスで各種チーズケーキや軽い軽食が味わえます。",
+                reason: "濃厚なチーズケーキのアソートプレートやチーズドック等をゆったりカフェスペースで味わえます。",
+                category: "gourmet",
+                subCategory: "cafe_sweets",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 50
+            },
+            {
+                id: "eitaro_confectionery",
+                name: "和菓子処 栄太楼",
+                lat: 36.9698,
+                lng: 140.0565,
+                desc: "黒磯駅近くの老舗和菓子店。みるくまんじゅうや生和菓子など手作りの優しい和スイーツが魅力。",
+                reason: "移動中のほっとするおやつや手土産にぴったり。上品な甘さが長旅の疲れを癒やします。",
+                category: "gourmet",
+                subCategory: "cafe_sweets",
+                energy: "relax",
+                area: "shiobara",
+                stayTime: 20
+            },
+
+            // --- ★ 自然・体験・リラックス（※飲食店・軽食メインではない施設） ★ ---
+            {
+                id: "shinrin_no_bokujo",
+                name: "森林ノ牧場 (しんりんのぼくじょう)",
+                lat: 37.0585,
+                lng: 140.0910,
+                desc: "森の中にジャージー牛が放牧されている静かな自然牧場。放牧地の散策やジャージー牛乳ソフトクリームが楽しめます。",
+                reason: "豊かな自然の森を散歩しながら、のんびり放牧風景に癒やされる静かなリフレッシュスポットです。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "relax",
+                area: "shiobara",
+                stayTime: 50
+            },
+            {
+                id: "kotaro_tea_house",
+                name: "塩原渓谷の秘境・小太郎茶屋",
+                lat: 36.9802,
+                lng: 139.8521,
+                desc: "渓谷の清流脇に佇む明治創業のお茶屋。名物の草だんごや抹茶を川のせせらぎと共に楽しめます。",
+                reason: "川床のような天然テラス席で絶品草だんごを堪能。時間がゆっくり流れる秘境癒やしスポットです。",
+                category: "nature",
+                subCategory: "cafe_sweets",
+                energy: "relax",
+                area: "shiobara",
+                stayTime: 55
+            },
+            {
+                id: "senbonmatsu_farm",
+                name: "那須 千本松牧場",
+                lat: 36.9242,
+                lng: 139.9463,
+                desc: "西那須野塩原IC近くの広大な入場無料牧場。サイクリングや動物との触れ合い、ソフトクリームが人気。",
+                reason: "開放的な緑の中で風を感じ、搾りたて牛乳特製ソフトクリームでおいしくリフレッシュできます。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 60
+            },
+            {
+                id: "rindohko_family_ranch",
+                name: "那須りんどう湖ファミリー牧場",
+                lat: 37.0282,
+                lng: 140.0521,
+                desc: "湖を中心に広がるレジャー牧場。ジップラインやボート、動物との触れ合いなどアクティビティ多数。",
+                reason: "湖上のアクティビティや自家製乳製品の食べ歩きが楽しめる元気なファミリーレジャー地です。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "nasu",
+                stayTime: 80
+            },
+            {
+                id: "nasu_animal_kingdom",
+                name: "那須どうぶつ王国",
+                lat: 37.1425,
+                lng: 140.0232,
+                desc: "広大な敷地でマヌルネコやカピバラ、鳥たちと触れ合える人気テーマパーク。",
+                reason: "ダイナミックなバードショーや珍しい動物たちとの触れ合いが楽しめるアクティブ派必須の王国です。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "nasu",
+                stayTime: 90
+            },
+            {
+                id: "nasu_ropeway",
+                name: "那須ロープウェイ (茶臼岳)",
+                lat: 37.1245,
+                lng: 139.9635,
+                desc: "茶臼岳9合目まで一気に登るロープウェイ。眼下に広がる那須高原の大パノラマ絶景。",
+                reason: "山頂からの壮大な景観と澄み切った山の風を感じる、爽快感抜群の絶景体験です。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "nasu",
+                stayTime: 75
+            },
+            {
+                id: "shiobara_monomibashi",
+                name: "もみじ谷大吊橋",
+                lat: 36.9588,
+                lng: 139.9061,
+                desc: "塩原ダム湖に架かる全長320mの巨大吊橋。360度の大パノラマ絶景が見渡せます。",
+                reason: "湖面を渡る心地よい風と空中散歩のスリル！気分のリフレッシュに最適な絶景ポイントです。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 45
+            },
+            {
+                id: "ryuka_waterfall",
+                name: "竜化の滝 (名瀑遊歩道)",
+                lat: 36.9657,
+                lng: 139.8415,
+                desc: "三段になって勢いよく駆け上る白糸のような塩原屈指の名瀑。",
+                reason: "渓流沿いの木道を散策し、迫力ある水の流音とマイナスイオンで心身ともに満たされます。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 65
+            },
+            {
+                id: "nasunogahara_park",
+                name: "栃木県営 那須野が原公園",
+                lat: 36.9185,
+                lng: 139.9515,
+                desc: "風車と広大な緑が美しい県営公園。散歩やベンチでのんびり過ごせます。",
+                reason: "青空の下、緑の芝生でゆったり風を感じる贅沢なやすらぎのひとときです。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "active",
+                area: "shiobara",
+                stayTime: 60
+            },
+            {
+                id: "onsen_shikanoyu",
+                name: "那須温泉 鹿の湯",
+                lat: 37.0978,
+                lng: 139.9998,
+                desc: "1300年の歴史を誇る那須最古の共同浴場。ひのきの湯船と乳白色の硫黄泉。",
+                reason: "伝統の湯治文化に触れ、身体の芯から疲労をほぐす極上の温泉体験です。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "relax",
+                area: "nasu",
+                stayTime: 60
+            },
+            {
+                id: "yuppo_no_sato",
+                name: "塩原温泉 湯っ歩の里",
+                lat: 36.9715,
+                lng: 139.8242,
+                desc: "全長60mの日本最大級足湯回廊。美しい日本庭園を眺めながら足湯を楽しめます。",
+                reason: "温かい温泉に足を浸しながら移動の疲れをじんわりほぐす至福の足湯スポットです。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "relax",
+                area: "shiobara",
+                stayTime: 50
+            },
+            {
+                id: "otome_waterfall",
+                name: "乙女の滝",
+                lat: 37.0428,
+                lng: 139.9572,
+                desc: "沢名川にある白糸のように美しい滝。涼しい水しぶきと美しい滝壺が魅力。",
+                reason: "短時間で手軽にマイナスイオンと滝の清涼感を味わえる和みの名所です。",
+                category: "nature",
+                subCategory: "experience",
+                energy: "relax",
+                area: "shiobara",
+                stayTime: 40
+            },
+
+            // --- ★ アート・文化・カルチャー ★ ---
+            {
+                id: "asian_old_bazaar",
+                name: "アジアンオールドバザール",
+                lat: 37.0425,
+                lng: 139.9982,
+                desc: "アジア各国のショップ＆レストランが集まるテーマパーク風の無国籍空間。",
+                reason: "色鮮やかなアジアン雑貨のお買い物やエスニックな写真撮影が楽しめます。",
+                category: "art",
+                subCategory: "experience",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 50
+            },
+            {
+                id: "nasu_teddy_bear",
+                name: "那須テディベア・ミュージアム",
+                lat: 37.0255,
+                lng: 140.0351,
+                desc: "世界中の可愛いテディベアが集まる温もり溢れるミュージアム。",
+                reason: "アンティークベアや巨大テディベアなど、可愛い世界観の中で写真撮影が楽しめます。",
+                category: "art",
+                subCategory: "experience",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 50
+            },
+            {
+                id: "nasu_art_museum",
+                name: "那須ステンドグラス美術館",
+                lat: 37.0435,
+                lng: 140.0381,
+                desc: "英国マナーハウスを再現した空間に本物のアンティークステンドグラスが輝きます。",
+                reason: "パイプオルガンの本物の生演奏と幻想的な光の空間に心が洗われます。",
+                category: "art",
+                subCategory: "experience",
+                energy: "trend",
+                area: "nasu",
+                stayTime: 60
+            },
+            {
+                id: "roadside_station_meiji",
+                name: "道の駅 明治の森・黒磯",
+                lat: 37.0195,
+                lng: 140.0152,
+                desc: "重要文化財の洋館とお花畑、地産地消直売所が魅力のロマンチックな道の駅。",
+                reason: "レトロな洋館とお花畑を背景に、絵画のような素晴らしい記念写真が残せます。",
+                category: "art",
+                subCategory: "experience",
+                energy: "trend",
+                area: "shiobara",
+                stayTime: 45
+            },
+            {
+                id: "sessho_seki",
+                name: "殺生石 (せっしょうせき)",
+                lat: 37.0992,
+                lng: 140.0015,
+                desc: "九尾の狐伝説の史跡。硫黄の香りと千体地蔵が独特の神秘的な空気感を漂わせます。",
+                reason: "木道をゆっくり散策しながら那須の歴史伝説を感じられる静寂の史跡です。",
+                category: "art",
+                subCategory: "experience",
+                energy: "relax",
+                area: "nasu",
+                stayTime: 40
+            }
+        ];
+
+        // ゴール地点
+        const GOAL_DATABASE = {
+            shinkansen: {
+                id: "nasu_shiobara_station",
+                name: "那須塩原駅（ゴール・お土産）",
+                lat: 36.9317,
+                lng: 140.0210,
+                desc: "新幹線・在来線の停車駅。お土産屋さんや駅ナカカフェが充実。",
+                reason: "改札前の大きなお土産店で栃木の特産品やレモン牛乳、美味しい銘菓を選んで旅を締めくくれます。",
+                stayTime: 30
+            },
+            car: {
+                id: "nasu_ic_entrance",
+                name: "那須IC（インター入口近く）",
+                lat: 37.0090,
+                lng: 140.0392,
+                desc: "東北自動車道への接続インター。周囲にお土産処多数。",
+                reason: "高速に乗る直前にお土産店やガソリンスタンドへ立ち寄れるスムーズなゴールです。",
+                stayTime: 15
+            }
+        };
+
+        // 診断質問データ定義
+        const QUIZ_DATA = [
+            {
+                question: "今のエネルギー残量はどれくらいですか？",
+                key: "persona",
+                choices: [
+                    { value: "active", label: "まだまだ元気！アクティブに動きたい", detail: "（アスレチック・渓谷ハイク・有名食堂）", icon: "zap" },
+                    { value: "relax", label: "ちょっと疲れた、静かに癒やされたい", detail: "（渓流お茶屋、温泉足湯、静かな滝）", icon: "smile" },
+                    { value: "trend", label: "映える写真が撮りたい、おしゃれに過ごしたい", detail: "（黒磯カフェ、お花の道の駅、ステンドグラス）", icon: "camera" }
+                ]
+            },
+            {
+                question: "次に一番惹かれるお楽しみはどれですか？",
+                key: "category",
+                choices: [
+                    { value: "gourmet", label: "満足ご飯！ステーキ・焼きそば・パン・本格カフェ", detail: "（ペニーレイン、ミスタービーフ、スープ焼きそば、黒磯カフェ）", icon: "utensils" },
+                    { value: "nature", label: "五感で癒やされる大自然・絶景・牧場体験", detail: "（ロープウェイ、渓谷吊橋、千本松牧場、森林ノ牧場）", icon: "trees" },
+                    { value: "art", label: "歴史や美に触れるアート・レトロ空間", detail: "（明治洋館、ステンドグラス美術館、テディベア）", icon: "palette" }
+                ]
+            },
+            {
+                question: "ルートの「まわり方（エリア比率）」の希望は？",
+                key: "routeStyle",
+                choices: [
+                    { value: "efficient", label: "移動は最小限！近場で効率よく一筆書き", detail: "（移動時間を極限まで減らして、スポットに長く滞在）", icon: "navigation" },
+                    { value: "nasu", label: "「那須高原エリア」を中心にまわりたい", detail: "（ペニーレインやステーキ、ステンドグラス等の比率を高めます）", icon: "home" },
+                    { value: "shiobara", label: "「那須塩原エリア」を中心にまわりたい", detail: "（スープ焼きそば、黒磯カフェ、温泉、吊橋等の比率を高めます）", icon: "map-pin" }
+                ]
+            }
+        ];
+
+        const FALLBACK_LAT = 36.9317;
+        const FALLBACK_LNG = 140.0210;
+
+        // アプリの状態
+        let state = {
+            durationMinutes: 240, 
+            goalType: 'shinkansen', 
+            persona: null, 
+            category: null, 
+            routeStyle: null, 
+            currentLocation: { lat: FALLBACK_LAT, lng: FALLBACK_LNG, isGps: false, startName: '那須塩原駅' },
+            step: 'top', 
+            quizIndex: 0,
+            selectedSpots: [],
+            activeSegmentIndex: 0 
+        };
+
+        let map = null;
+        let mapMarkers = [];
+        let segmentPolylines = []; 
+        let isMapLocked = true; 
+
+        window.onload = function() {
+            lucide.createIcons();
+            updateDurationFromSlider(240); 
+        };
+
+        function selectGoalType(type) {
+            state.goalType = type;
+            
+            const shinkansenBtn = document.getElementById('goal-shinkansen');
+            const carBtn = document.getElementById('goal-car');
+            
+            if (type === 'shinkansen') {
+                shinkansenBtn.className = "py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-emerald-50 border-emerald-500 text-emerald-900 font-bold";
+                carBtn.className = "py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-white border-stone-200 text-stone-600 hover:border-emerald-300";
+            } else {
+                carBtn.className = "py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-emerald-50 border-emerald-500 text-emerald-900 font-bold";
+                shinkansenBtn.className = "py-3 px-4 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 bg-white border-stone-200 text-stone-600 hover:border-emerald-300";
+            }
+        }
+
+        function updateDurationFromSlider(val) {
+            state.durationMinutes = parseInt(val);
+            const hours = Math.floor(state.durationMinutes / 60);
+            const mins = state.durationMinutes % 60;
+            
+            const minsStr = mins === 0 ? "00" : mins;
+            document.getElementById('display-duration').innerText = `${hours}時間 ${minsStr}分`;
+            
+            let desc = "";
+            if (state.durationMinutes <= 120) {
+                desc = "「1つのスポットを深く堪能」名物グルメや駅前カフェで急がず過ごすショートプラン。";
+            } else if (state.durationMinutes <= 240) {
+                desc = "「お気に入りの2スポット」満足ご飯＋カフェ/絶景を楽しめるバランス快適コース。";
+            } else if (state.durationMinutes <= 480) {
+                desc = "「大満足の3スポット」グルメも絶景散策もカフェも欲張れる充実プラン。";
+            } else {
+                desc = "「贅沢那須塩原三昧」夕暮れまで極上スポットを味わい尽くす贅沢旅。";
+            }
+            document.getElementById('display-duration-desc').innerText = desc;
+        }
+
+        function adjustDuration(amount) {
+            const slider = document.getElementById('duration-slider');
+            let newVal = parseInt(slider.value) + amount;
+            
+            if (newVal < parseInt(slider.min)) newVal = parseInt(slider.min);
+            if (newVal > parseInt(slider.max)) newVal = parseInt(slider.max);
+            
+            slider.value = newVal;
+            updateDurationFromSlider(newVal);
+        }
+
+        function startDiagnosis() {
+            switchStep('quiz');
+            state.quizIndex = 0;
+            renderQuiz();
+        }
+
+        function renderQuiz() {
+            const quiz = QUIZ_DATA[state.quizIndex];
+            const container = document.getElementById('quiz-container');
+            
+            const currentStep = state.quizIndex + 1;
+            const totalSteps = QUIZ_DATA.length;
+            document.getElementById('quiz-progress-text').innerText = `質問 ${currentStep} / ${totalSteps}`;
+            document.getElementById('quiz-progress-bar').style.width = `${(currentStep / totalSteps) * 100}%`;
+
+            let choicesHtml = '';
+            quiz.choices.forEach((choice) => {
+                choicesHtml += `
+                    <button onclick="answerQuiz('${quiz.key}', '${choice.value}')" class="w-full text-left bg-white border border-stone-200 hover:border-emerald-500 hover:bg-emerald-50/20 p-4 rounded-2xl shadow-sm transition active:scale-[0.99] flex items-center gap-4 group">
+                        <div class="w-10 h-10 rounded-xl bg-stone-100 group-hover:bg-emerald-100 flex items-center justify-center text-stone-600 group-hover:text-emerald-700 transition shrink-0">
+                            <i data-lucide="${choice.icon}" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-grow">
+                            <p class="text-sm font-bold text-stone-800">${choice.label}</p>
+                            <p class="text-xs text-stone-500 mt-0.5">${choice.detail}</p>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-stone-300 group-hover:text-emerald-500 transition shrink-0"></i>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <span class="inline-block bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-1 rounded-md mb-2">Q${currentStep}</span>
+                    <h3 class="text-lg font-extrabold text-stone-800 leading-snug px-2">${quiz.question}</h3>
+                </div>
+                <div class="space-y-3 mt-2">
+                    ${choicesHtml}
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        function answerQuiz(key, value) {
+            state[key] = value;
+            
+            if (state.quizIndex < QUIZ_DATA.length - 1) {
+                state.quizIndex++;
+                renderQuiz();
+            } else {
+                switchStep('loading');
+                requestLocationAndBuildRoute();
+            }
+        }
+
+        function requestLocationAndBuildRoute() {
+            document.getElementById('gps-rescue-container').classList.remove('hidden');
+            document.getElementById('loading-title').innerText = "位置情報を取得しています";
+            document.getElementById('loading-status').innerHTML = `
+                人工衛星・ネットワークから現在位置を探しています...<br>
+                <span class="text-[10px] opacity-75">※画面上に許可ダイアログが出た場合は「許可」を選択してください</span>
+            `;
+
+            if (!("geolocation" in navigator)) {
+                showGpsErrorAndShowRescue("お使いのブラウザは位置情報(GPS)機能に対応していません。下の出発地一覧から選択してください。");
+                return;
+            }
+
+            const highAccuracyOptions = { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 };
+            const lowAccuracyOptions = { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 };
+
+            let gpsTimer = setTimeout(() => {
+                document.getElementById('loading-status').innerText = "GPS応答を待機中です... 時間がかかる場合は下の一覧から出発地をお選びいただけます。";
+            }, 3000);
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    clearTimeout(gpsTimer);
+                    handleGpsSuccess(position);
+                },
+                (error) => {
+                    console.warn("高精度GPS測位が失敗しました。標準精度で再試行します... ", error);
+                    document.getElementById('loading-status').innerText = "ネットワーク位置情報で現在位置を認識中...";
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            clearTimeout(gpsTimer);
+                            handleGpsSuccess(position);
+                        },
+                        (err) => {
+                            clearTimeout(gpsTimer);
+                            console.error("GPS測位失敗: ", err);
+                            let errMsg = "位置情報を取得できませんでした。";
+                            if (err.code === err.PERMISSION_DENIED) {
+                                errMsg = "位置情報の利用が許可されていません。下のリストから出発地を選択してください。";
+                            }
+                            showGpsErrorAndShowRescue(errMsg);
+                        },
+                        lowAccuracyOptions
+                    );
+                },
+                highAccuracyOptions
+            );
+        }
+
+        function handleGpsSuccess(position) {
+            state.currentLocation.lat = position.coords.latitude;
+            state.currentLocation.lng = position.coords.longitude;
+            state.currentLocation.isGps = true;
+            state.currentLocation.startName = '現在地';
+
+            document.getElementById('loading-status').innerText = "現在地を認識しました！まもなくあなた専用のルートを作成します...";
+            setTimeout(() => {
+                buildPerfectRoute();
+            }, 600);
+        }
+
+        function showGpsErrorAndShowRescue(message) {
+            document.getElementById('loading-title').innerText = "出発地を選択してください";
+            document.getElementById('loading-status').innerHTML = `
+                <span class="text-amber-300 font-bold block mb-1">GPS自動取得をスキップしました</span>
+                ${message}
+            `;
+            document.getElementById('gps-rescue-container').classList.remove('hidden');
+        }
+
+        function manuallySetStart(lat, lng, name) {
+            state.currentLocation.lat = lat;
+            state.currentLocation.lng = lng;
+            state.currentLocation.isGps = false;
+            state.currentLocation.startName = name;
+
+            document.getElementById('loading-status').innerText = `「${name}」を出発地点に設定しました。ルート計算を開始します...`;
+            
+            setTimeout(() => {
+                buildPerfectRoute();
+            }, 600);
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function getRealisticTravelTime(fromLat, fromLng, toLat, toLng) {
+            const dist = getDistance(fromLat, fromLng, toLat, toLng);
+            let baseSpeed = 35; 
+            if (dist < 3) baseSpeed = 25; 
+            else if (dist > 15) baseSpeed = 45; 
+            
+            let windingFactor = 1.35;
+            const realRoadDist = dist * windingFactor;
+            let travelTimeMin = Math.round((realRoadDist / baseSpeed) * 60);
+            
+            let mountainDelay = 0;
+            if (dist > 5) mountainDelay = 3; 
+            if (dist > 12) mountainDelay = 7; 
+
+            return travelTimeMin + mountainDelay;
+        }
+
+        // ----------------------------------------------------
+        // 最適ルートの自動算出（グルメ・目的地の厳格な選定アルゴリズム）
+        // ----------------------------------------------------
+        function buildPerfectRoute() {
+            const goalSpot = GOAL_DATABASE[state.goalType];
+            let candidates = JSON.parse(JSON.stringify(SPOTS_DATABASE));
+
+            // スコアリング定義
+            candidates.forEach(spot => {
+                let score = 0;
+                
+                // 【好みジャンルの一致（最重点）】
+                if (spot.category === state.category) {
+                    score += 1500;
+                    // 「グルメ」選択時、しっかりした食事処（subCategory: meal）であれば更に高加点
+                    if (state.category === 'gourmet' && spot.subCategory === 'meal') {
+                        score += 500;
+                    }
+                } else {
+                    score -= 500; // ジャンル違いは大幅減点
+                }
+
+                // 【気分・エネルギーの一致】
+                if (spot.energy === state.persona) {
+                    score += 800;
+                }
+
+                // 【エリア比率】
+                if (state.routeStyle === "nasu" && spot.area === "nasu") {
+                    score += 500;
+                } else if (state.routeStyle === "shiobara" && spot.area === "shiobara") {
+                    score += 500;
+                } else if (state.routeStyle === "efficient") {
+                    score += 200;
+                }
+
+                // 微小ランダム性
+                score += Math.random() * 30;
+
+                spot.tempScore = score;
+            });
+
+            // スコア順にソート
+            candidates.sort((a, b) => b.tempScore - a.tempScore);
+
+            // 目標スポット数
+            let targetCount = 2;
+            if (state.durationMinutes <= 120) targetCount = 1;
+            else if (state.durationMinutes <= 240) targetCount = 2;
+            else if (state.durationMinutes <= 480) targetCount = 3;
+            else targetCount = 4;
+
+            // スコア上位から選定（グルメが選ばれている場合は、最低1つ以上の「食事処(meal)」を必須確保）
+            let selectedCandidates = [];
+            let mealSecured = false;
+
+            if (state.category === 'gourmet') {
+                // まず最もスコアの高い「食事処(meal)」を最優先ピック
+                const topMeal = candidates.find(s => s.category === 'gourmet' && s.subCategory === 'meal');
+                if (topMeal) {
+                    selectedCandidates.push(topMeal);
+                    mealSecured = true;
+                }
+            }
+
+            for (let i = 0; i < candidates.length; i++) {
+                if (selectedCandidates.length < targetCount) {
+                    const candidate = candidates[i];
+                    if (selectedCandidates.some(s => s.id === candidate.id)) continue;
+
+                    // カフェ・グルメの重複が多すぎないよう制御
+                    selectedCandidates.push(candidate);
+                }
+            }
+
+            // ルートの一筆書き最適順への並び替え
+            function optimizeRouteOrder(spots, startLat, startLng) {
+                let unvisited = [...spots];
+                let ordered = [];
+                let currLat = startLat;
+                let currLng = startLng;
+
+                while (unvisited.length > 0) {
+                    let closestIdx = 0;
+                    let minDist = Infinity;
+                    
+                    for (let i = 0; i < unvisited.length; i++) {
+                        let dist = getDistance(currLat, currLng, unvisited[i].lat, unvisited[i].lng);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestIdx = i;
+                        }
+                    }
+                    
+                    let nextSpot = unvisited.splice(closestIdx, 1)[0];
+                    ordered.push(nextSpot);
+                    currLat = nextSpot.lat;
+                    currLng = nextSpot.lng;
+                }
+                return ordered;
+            }
+
+            // 総時間計算
+            function calculateTotalRouteMinutes(orderedSpots, startLat, startLng, goal) {
+                let totalMin = 0;
+                let currLat = startLat;
+                let currLng = startLng;
+
+                for (let i = 0; i < orderedSpots.length; i++) {
+                    const spot = orderedSpots[i];
+                    const travelTime = getRealisticTravelTime(currLat, currLng, spot.lat, spot.lng);
+                    totalMin += travelTime + spot.stayTime;
+                    currLat = spot.lat;
+                    currLng = spot.lng;
+                }
+
+                const finalTravelTime = getRealisticTravelTime(currLat, currLng, goal.lat, goal.lng);
+                totalMin += finalTravelTime + goal.stayTime;
+
+                return totalMin;
+            }
+
+            let orderedRoute = optimizeRouteOrder(selectedCandidates, state.currentLocation.lat, state.currentLocation.lng);
+            let totalDuration = calculateTotalRouteMinutes(orderedRoute, state.currentLocation.lat, state.currentLocation.lng, goalSpot);
+
+            // 残り時間に余裕がある場合の追加調整
+            let addedCount = 0;
+            while (totalDuration < state.durationMinutes && addedCount < 2) {
+                let bestNextSpot = null;
+                let bestNextScore = -Infinity;
+
+                for (let i = 0; i < candidates.length; i++) {
+                    const candidate = candidates[i];
+                    if (orderedRoute.some(s => s.id === candidate.id)) continue;
+
+                    let minDistToRoute = Infinity;
+                    orderedRoute.forEach(rSpot => {
+                        let dist = getDistance(rSpot.lat, rSpot.lng, candidate.lat, candidate.lng);
+                        if (dist < minDistToRoute) minDistToRoute = dist;
+                    });
+
+                    let evaluation = candidate.tempScore - (minDistToRoute * 10);
+                    if (evaluation > bestNextScore) {
+                        bestNextScore = evaluation;
+                        bestNextSpot = candidate;
+                    }
+                }
+
+                if (!bestNextSpot) break; 
+
+                let testSpots = [...orderedRoute, bestNextSpot];
+                let testOrdered = optimizeRouteOrder(testSpots, state.currentLocation.lat, state.currentLocation.lng);
+                let testDuration = calculateTotalRouteMinutes(testOrdered, state.currentLocation.lat, state.currentLocation.lng, goalSpot);
+
+                if (testDuration <= state.durationMinutes) {
+                    orderedRoute = testOrdered;
+                    totalDuration = testDuration;
+                    addedCount++;
+                } else {
+                    break;
+                }
+            }
+
+            // 時間オーバー時の削減（ただしユーザーがグルメ選択時の食事処は優先保護）
+            while (totalDuration > state.durationMinutes && orderedRoute.length > 1) {
+                let removeIdx = -1;
+                let lowestScore = Infinity;
+                for (let i = 0; i < orderedRoute.length; i++) {
+                    // グルメ選択時の食事処は極力残す
+                    let scorePenalty = (state.category === 'gourmet' && orderedRoute[i].subCategory === 'meal') ? 1000 : 0;
+                    let effectiveScore = orderedRoute[i].tempScore + scorePenalty;
+
+                    if (effectiveScore < lowestScore) {
+                        lowestScore = effectiveScore;
+                        removeIdx = i;
+                    }
+                }
+                if (removeIdx !== -1) {
+                    orderedRoute.splice(removeIdx, 1);
+                    orderedRoute = optimizeRouteOrder(orderedRoute, state.currentLocation.lat, state.currentLocation.lng);
+                    totalDuration = calculateTotalRouteMinutes(orderedRoute, state.currentLocation.lat, state.currentLocation.lng, goalSpot);
+                } else {
+                    break;
+                }
+            }
+
+            // 最終オブジェクトの構築
+            let finalSpots = [];
+            let currLat = state.currentLocation.lat;
+            let currLng = state.currentLocation.lng;
+
+            for (let i = 0; i < orderedRoute.length; i++) {
+                const spot = orderedRoute[i];
+                const travelTime = getRealisticTravelTime(currLat, currLng, spot.lat, spot.lng);
+                
+                finalSpots.push({
+                    ...spot,
+                    travelTimeFromPrev: travelTime
+                });
+                currLat = spot.lat;
+                currLng = spot.lng;
+            }
+
+            const finalTravelMin = getRealisticTravelTime(currLat, currLng, goalSpot.lat, goalSpot.lng);
+            finalSpots.push({
+                ...goalSpot,
+                stayTime: goalSpot.stayTime,
+                travelTimeFromPrev: finalTravelMin
+            });
+
+            state.selectedSpots = finalSpots;
+            state.activeSegmentIndex = 0;
+
+            setTimeout(() => {
+                switchStep('action');
+                initOrUpdateMap();
+                renderTimeline();
+            }, 800);
+        }
+
+        // ----------------------------------------------------
+        // 地図(Map)制御
+        // ----------------------------------------------------
+        function initOrUpdateMap() {
+            if (!map) {
+                map = L.map('map', {
+                    zoomControl: false,
+                    dragging: !isMapLocked,
+                    touchZoom: !isMapLocked,
+                    scrollWheelZoom: !isMapLocked,
+                    doubleClickZoom: !isMapLocked,
+                    tap: !isMapLocked
+                }).setView([state.currentLocation.lat, state.currentLocation.lng], 12);
+
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                    subdomains: 'abcd',
+                    maxZoom: 19
+                }).addTo(map);
+            }
+
+            mapMarkers.forEach(m => map.removeLayer(m));
+            mapMarkers = [];
+            
+            segmentPolylines.forEach(p => map.removeLayer(p));
+            segmentPolylines = [];
+
+            const startIcon = L.divIcon({
+                html: `<div class="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white shadow-lg animate-pulse"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>`,
+                className: '',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+            });
+
+            const spotIcon = (index, total, category) => {
+                const isLast = index === total - 1;
+                let bgColor = 'bg-emerald-600';
+                let iconContent = '';
+
+                if (isLast) {
+                    bgColor = 'bg-amber-600';
+                    iconContent = `<i data-lucide="flag" class="w-4 h-4 text-white"></i>`;
+                } else {
+                    if (category === 'gourmet') {
+                        bgColor = 'bg-rose-500';
+                        iconContent = `<i data-lucide="utensils" class="w-4 h-4 text-white"></i>`;
+                    } else if (category === 'nature') {
+                        bgColor = 'bg-emerald-600';
+                        iconContent = `<i data-lucide="trees" class="w-4 h-4 text-white"></i>`;
+                    } else if (category === 'art') {
+                        bgColor = 'bg-indigo-600';
+                        iconContent = `<i data-lucide="palette" class="w-4 h-4 text-white"></i>`;
+                    } else {
+                        iconContent = `<span class="text-xs font-black text-white">${index}</span>`;
+                    }
+                }
+                
+                return L.divIcon({
+                    html: `
+                        <div class="relative flex flex-col items-center">
+                            <div class="w-9 h-9 rounded-full ${bgColor} border-2 border-white flex items-center justify-center shadow-md transform transition hover:scale-110">
+                                ${iconContent}
+                            </div>
+                            <div class="w-2.5 h-2.5 bg-white border-r border-b border-stone-200 transform rotate-45 -mt-1.5 shadow-sm"></div>
+                            ${!isLast ? `<span class="absolute -top-1.5 -right-1.5 bg-stone-900 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white">${index}</span>` : ''}
+                        </div>
+                    `,
+                    className: '',
+                    iconSize: [36, 42],
+                    iconAnchor: [18, 42]
+                });
+            };
+
+            const startMarker = L.marker([state.currentLocation.lat, state.currentLocation.lng], { icon: startIcon })
+                .addTo(map)
+                .bindPopup(`<div class="font-bold text-stone-800 text-xs">出発地点</div>`)
+                .bindTooltip(state.currentLocation.startName, {
+                    permanent: true,
+                    direction: "top",
+                    offset: [0, -32],
+                    className: "custom-start-label"
+                });
+            mapMarkers.push(startMarker);
+
+            state.selectedSpots.forEach((spot, index) => {
+                const marker = L.marker([spot.lat, spot.lng], { icon: spotIcon(index + 1, state.selectedSpots.length, spot.category) })
+                    .addTo(map)
+                    .bindPopup(`
+                        <div class="text-stone-800 p-1">
+                            <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded mr-1">スポット ${index + 1}</span>
+                            <h4 class="font-bold text-xs mt-1 text-emerald-950">${spot.name}</h4>
+                            <p class="text-[10px] text-stone-500 mt-0.5 leading-snug">${spot.desc}</p>
+                        </div>
+                    `)
+                    .bindTooltip(`${index + 1}. ${spot.name}`, {
+                        permanent: true,
+                        direction: "top",
+                        offset: [0, -38],
+                        className: "custom-spot-label"
+                    });
+                mapMarkers.push(marker);
+            });
+
+            const segments = [];
+            segments.push({
+                from: [state.currentLocation.lat, state.currentLocation.lng],
+                to: [state.selectedSpots[0].lat, state.selectedSpots[0].lng],
+                index: 0
+            });
+
+            for (let i = 0; i < state.selectedSpots.length - 1; i++) {
+                segments.push({
+                    from: [state.selectedSpots[i].lat, state.selectedSpots[i].lng],
+                    to: [state.selectedSpots[i+1].lat, state.selectedSpots[i+1].lng],
+                    index: i + 1
+                });
+            }
+
+            const activeSeg = segments[state.activeSegmentIndex];
+            if (activeSeg) {
+                const fromName = state.activeSegmentIndex === 0 ? "出発地点" : `スポット${state.activeSegmentIndex}`;
+                const toName = `スポット${state.activeSegmentIndex + 1}`;
+                document.getElementById('active-segment-label').innerText = `${fromName} ➔ ${toName}`;
+            }
+
+            segments.forEach(seg => {
+                const url = `https://router.project-osrm.org/route/v1/driving/${seg.from[1]},${seg.from[0]};${seg.to[1]},${seg.to[0]}?overview=full&geometries=geojson`;
+
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        let coords = [];
+                        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+                            coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                        } else {
+                            coords = [seg.from, seg.to];
+                        }
+
+                        const isActive = seg.index === state.activeSegmentIndex;
+
+                        if (isActive) {
+                            const bgLine = L.polyline(coords, {
+                                color: '#ffffff',
+                                weight: 11,
+                                opacity: 0.95,
+                                lineJoin: 'round'
+                            }).addTo(map);
+                            segmentPolylines.push(bgLine);
+
+                            const activeLine = L.polyline(coords, {
+                                color: '#059669', 
+                                weight: 6,
+                                opacity: 1.0,
+                                lineJoin: 'round',
+                                className: 'animated-route-line' 
+                            }).addTo(map);
+                            segmentPolylines.push(activeLine);
+                        } else {
+                            const inactiveLine = L.polyline(coords, {
+                                color: '#a8a29e', 
+                                weight: 4,
+                                opacity: 0.5,
+                                lineJoin: 'round',
+                                dashArray: '4, 8'
+                            }).addTo(map);
+                            segmentPolylines.push(inactiveLine);
+                        }
+                    })
+                    .catch(err => {
+                        console.warn("ルート描画エラー:", err);
+                        const isActive = seg.index === state.activeSegmentIndex;
+                        const fallbackCoords = [seg.from, seg.to];
+                        
+                        if (isActive) {
+                            const activeLine = L.polyline(fallbackCoords, {
+                                color: '#059669',
+                                weight: 6,
+                                opacity: 1.0,
+                                className: 'animated-route-line'
+                            }).addTo(map);
+                            segmentPolylines.push(activeLine);
+                        } else {
+                            const inactiveLine = L.polyline(fallbackCoords, {
+                                color: '#a8a29e',
+                                weight: 3,
+                                opacity: 0.4,
+                                dashArray: '4, 8'
+                            }).addTo(map);
+                            segmentPolylines.push(inactiveLine);
+                        }
+                    });
+            });
+
+            setTimeout(() => {
+                const group = new L.featureGroup(mapMarkers);
+                map.fitBounds(group.getBounds().pad(0.24));
+                lucide.createIcons();
+            }, 300);
+        }
+
+        function toggleMapLock() {
+            if (!map) return;
+            
+            isMapLocked = !isMapLocked;
+            const btn = document.getElementById('btn-map-lock');
+            const icon = document.getElementById('icon-map-lock');
+            const text = document.getElementById('text-map-lock');
+
+            if (isMapLocked) {
+                map.dragging.disable();
+                map.touchZoom.disable();
+                map.scrollWheelZoom.disable();
+                map.doubleClickZoom.disable();
+                if (map.tap) map.tap.disable();
+
+                btn.className = "bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg shadow-md flex items-center gap-1.5 transition active:scale-95";
+                icon.setAttribute('data-lucide', 'lock');
+                text.innerText = "地図を操作する";
+            } else {
+                map.dragging.enable();
+                map.touchZoom.enable();
+                map.scrollWheelZoom.enable();
+                map.doubleClickZoom.enable();
+                if (map.tap) map.tap.enable();
+
+                btn.className = "bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg shadow-md flex items-center gap-1.5 transition active:scale-95";
+                icon.setAttribute('data-lucide', 'unlock');
+                text.innerText = "地図を固定（ロック）";
+            }
+            lucide.createIcons();
+        }
+
+        function recenterMap() {
+            if (map && mapMarkers.length > 0) {
+                const group = new L.featureGroup(mapMarkers);
+                map.fitBounds(group.getBounds().pad(0.12));
+            }
+        }
+
+        function selectRouteSegment(index) {
+            state.activeSegmentIndex = index;
+            initOrUpdateMap();
+            renderTimeline();
+        }
+
+        // ----------------------------------------------------
+        // アクション画面：タイムラインと詳細表示
+        // ----------------------------------------------------
+        function renderTimeline() {
+            let personaLabel = "あなたに合わせた厳選コース";
+            if (state.persona === 'active') personaLabel = "アクティブ散策派";
+            else if (state.persona === 'relax') personaLabel = "のんびり癒やし派";
+            else if (state.persona === 'trend') personaLabel = "お洒落トレンド派";
+
+            let styleLabel = "バランス重視";
+            if (state.routeStyle === "efficient") styleLabel = "移動効率最優先";
+            else if (state.routeStyle === "nasu") styleLabel = "那須高原中心";
+            else if (state.routeStyle === "shiobara") styleLabel = "那須塩原中心";
+
+            const hours = Math.floor(state.durationMinutes / 60);
+            const mins = state.durationMinutes % 60;
+            const durationLabel = mins === 0 ? `約${hours}時間` : `約${hours}時間${mins}分`;
+
+            document.getElementById('badge-persona').innerText = personaLabel;
+            document.getElementById('badge-style').innerText = styleLabel;
+            document.getElementById('badge-duration').innerText = `${durationLabel}コース`;
+
+            let routeTitleText = "";
+            if (state.category === 'gourmet') {
+                routeTitleText = "「那須の絶品ランチ＆名物パン・カフェを堪能する大満足グルメコース」";
+            } else if (state.category === 'nature') {
+                routeTitleText = "「雄大な大自然・渓谷絶景と爽やかな牧場風を感じるリフレッシュ旅」";
+            } else {
+                routeTitleText = "「アンティーク建築と歴史・カルチャーに触れるセンスあふれるセンス旅」";
+            }
+            document.getElementById('route-title').innerText = routeTitleText;
+
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '';
+
+            let currentTime = new Date();
+            
+            const startHtml = `
+                <div class="relative">
+                    <span class="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 ring-4 ring-blue-100">
+                        <span class="h-2 w-2 rounded-full bg-white"></span>
+                    </span>
+                    <div class="flex items-center justify-between">
+                        <time class="text-xs font-black text-blue-600">${formatTime(currentTime)}</time>
+                        <span class="text-[10px] text-stone-400">START</span>
+                    </div>
+                    <h4 class="text-sm font-extrabold text-stone-900 mt-0.5">出発地点：${state.currentLocation.startName}</h4>
+                    <p class="text-xs text-stone-500 mt-0.5">現在地から、那須塩原の楽しい旅を始めます！</p>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', startHtml);
+
+            state.selectedSpots.forEach((spot, idx) => {
+                const isLast = idx === state.selectedSpots.length - 1;
+                
+                const arrivalTime = new Date(currentTime.getTime() + spot.travelTimeFromPrev * 60000);
+                const arrivalTimeStr = formatTime(arrivalTime);
+
+                const departureTime = new Date(arrivalTime.getTime() + spot.stayTime * 60000);
+                const departureTimeStr = formatTime(departureTime);
+
+                currentTime = departureTime;
+
+                let numBadgeColor = isLast ? 'bg-amber-600' : (spot.category === 'gourmet' ? 'bg-rose-500' : 'bg-emerald-600');
+                
+                const isSegmentActive = idx === state.activeSegmentIndex;
+                const activeCardStyle = isSegmentActive 
+                    ? 'border-2 border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-100' 
+                    : 'border border-stone-200 bg-white hover:border-stone-400';
+
+                const spotHtml = `
+                    <div class="relative">
+                        <button type="button" onclick="selectRouteSegment(${idx})" class="w-full text-left -mt-3 mb-4 p-3 rounded-xl transition duration-200 ${activeCardStyle}">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold ${isSegmentActive ? 'text-emerald-700 bg-emerald-100' : 'text-stone-500 bg-stone-150'} px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <i data-lucide="car" class="w-3.5 h-3.5"></i>
+                                    次の区間のルート案内を表示
+                                </span>
+                                ${isSegmentActive ? '<span class="text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded-sm">案内中</span>' : '<span class="text-[9px] text-stone-400 font-medium">タップで切替</span>'}
+                            </div>
+                            <div class="text-[11px] font-extrabold text-stone-700 mt-1 flex items-center gap-1">
+                                <span>車で約 <strong class="text-stone-900 text-sm">${spot.travelTimeFromPrev}分</strong></span>
+                                <span class="text-stone-300">|</span>
+                                <span class="font-normal text-stone-500 font-sans">那須・塩原の実測道路を考慮</span>
+                            </div>
+                        </button>
+
+                        <span class="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full ${numBadgeColor} ring-4 ring-white shadow-sm">
+                            <span class="text-[9px] font-bold text-white">${idx + 1}</span>
+                        </span>
+
+                        <div class="flex items-center justify-between">
+                            <time class="text-xs font-black text-stone-800">
+                                ${arrivalTimeStr} 〜 ${departureTimeStr}
+                            </time>
+                            <span class="text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded font-sans">目安:${spot.stayTime}分</span>
+                        </div>
+                        <h4 class="text-sm font-extrabold text-stone-900 mt-1">
+                            ${spot.name}
+                            <span class="ml-1 text-[10px] font-bold text-stone-400 border border-stone-200 px-1 py-0.2 rounded-sm uppercase tracking-wide">
+                                ${spot.area === "nasu" ? "那須高原" : "那須塩原"}
+                            </span>
+                        </h4>
+                        <p class="text-xs text-stone-500 mt-1 leading-relaxed">${spot.desc}</p>
+                        
+                        <div class="mt-2 bg-emerald-50/50 p-2.5 rounded-lg border-l-2 border-emerald-500">
+                            <p class="text-xs text-emerald-850 font-medium leading-relaxed">
+                                <span class="font-bold text-emerald-700">📌 おすすめPoint:</span> ${spot.reason}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', spotHtml);
+            });
+
+            setupGoogleMapButton();
+            lucide.createIcons();
+        }
+
+        function formatTime(date) {
+            const h = String(date.getHours()).padStart(2, '0');
+            const m = String(date.getMinutes()).padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        function setupGoogleMapButton() {
+            const btn = document.getElementById('btn-google-map');
+            if (state.selectedSpots.length === 0) return;
+
+            // 出発地（現在地）
+            const origin = `${state.currentLocation.lat},${state.currentLocation.lng}`;
+            
+            // 目的地（座標の代わりに施設・店舗名で指定して民家住所への誤変換を防止）
+            const lastSpot = state.selectedSpots[state.selectedSpots.length - 1];
+            const destination = encodeURIComponent(lastSpot.name);
+            
+            // 途中経由地（店舗・スポット名で指定）
+            const waypointsList = state.selectedSpots.slice(0, -1);
+            const waypoints = waypointsList.map(s => encodeURIComponent(s.name)).join('|');
+
+            let googleMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+            if (waypoints.length > 0) {
+                googleMapUrl += `&waypoints=${waypoints}`;
+            }
+
+            btn.onclick = function() {
+                window.open(googleMapUrl, '_blank');
+            };
+        }
+
+        function recalculateRoute() {
+            switchStep('loading');
+            requestLocationAndBuildRoute();
+        }
+
+        function switchStep(targetStep) {
+            state.step = targetStep;
+
+            document.getElementById('step-top').classList.add('hidden');
+            document.getElementById('step-quiz').classList.add('hidden');
+            document.getElementById('step-loading').classList.add('hidden');
+            document.getElementById('step-action').classList.add('hidden');
+            document.getElementById('app-header').classList.add('hidden');
+
+            if (targetStep === 'top') {
+                document.getElementById('step-top').classList.remove('hidden');
+            } else if (targetStep === 'quiz') {
+                document.getElementById('step-quiz').classList.remove('hidden');
+                document.getElementById('app-header').classList.remove('hidden');
+            } else if (targetStep === 'loading') {
+                document.getElementById('step-loading').classList.remove('hidden');
+            } else if (targetStep === 'action') {
+                document.getElementById('step-action').classList.remove('hidden');
+                document.getElementById('app-header').classList.remove('hidden');
+                
+                isMapLocked = true;
+                setTimeout(() => {
+                    const btn = document.getElementById('btn-map-lock');
+                    const icon = document.getElementById('icon-map-lock');
+                    const text = document.getElementById('text-map-lock');
+                    btn.className = "bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg shadow-md flex items-center gap-1.5 transition active:scale-95";
+                    icon.setAttribute('data-lucide', 'lock');
+                    text.innerText = "地図を操作する";
+                    lucide.createIcons();
+                }, 100);
+            }
+        }
+
+        function resetToTop() {
+            switchStep('top');
+        }
+    </script>
+</body>
+</html>

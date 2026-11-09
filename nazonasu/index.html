@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>なぞなぞワールド & 栃木GPSお散歩ガイド</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- Leaflet.js CSS for Interactive Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+        }
+        .gradient-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #2563eb 100%);
+        }
+        .course-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .course-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .char-card {
+            transition: all 0.2s ease;
+        }
+        .char-card:hover {
+            transform: scale(1.03);
+        }
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border-radius: 1rem;
+        }
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 8px 8px 8px 0;
+            border-style: solid;
+            border-color: transparent #ffffff transparent transparent;
+        }
+        #course-map {
+            height: 280px;
+            width: 100%;
+            border-radius: 1.25rem;
+            z-index: 10;
+        }
+        .timeline-step::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 36px;
+            bottom: -20px;
+            width: 2px;
+            background-color: #cbd5e1;
+        }
+        .timeline-step:last-child::before {
+            display: none;
+        }
+        .pulse-user-pin {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .gps-pulse-badge {
+            animation: pulse-badge 2s infinite;
+        }
+        @keyframes pulse-badge {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(1.03); }
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <header class="gradient-header text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="filterCategory('all')">
+                <div class="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
+                    <i class="fa-solid fa-location-crosshairs text-3xl text-amber-300 animate-spin-slow"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-wide">なぞなぞワールド</h1>
+                    <p class="text-xs text-indigo-100 font-medium">GPS現地到着でなぞなぞ解禁！栃木お散歩ガイド</p>
+                </div>
+            </div>
+
+            <!-- Stats & GPS Status Badge -->
+            <div class="flex items-center gap-3">
+                <button onclick="requestGPSLocation()" class="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/20 flex items-center gap-2 text-xs font-bold transition">
+                    <i class="fa-solid fa-satellite-dish text-amber-300 animate-pulse" id="gps-status-icon"></i>
+                    <span id="gps-status-text">GPS自動追跡中</span>
+                </button>
+
+                <div class="flex items-center gap-3 bg-white/10 px-4 py-1.5 rounded-xl backdrop-blur-md border border-white/20">
+                    <div class="text-center">
+                        <span class="block text-[10px] text-indigo-200">コース数</span>
+                        <span id="total-courses-count" class="text-base font-bold text-amber-300">15</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white py-4 px-4 shadow-inner">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <div class="flex items-center gap-4 w-full md:w-auto">
+                <div id="active-char-avatar" class="w-16 h-16 rounded-2xl bg-amber-400 border-2 border-white flex items-center justify-center text-3xl shadow-lg transform transition hover:rotate-6">
+                    🍓
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold px-2 py-0.5 bg-amber-400 text-slate-900 rounded-md">お散歩パートナー</span>
+                        <h3 id="active-char-name" class="font-black text-lg text-amber-300">とちまる</h3>
+                    </div>
+                    <div class="speech-bubble px-3 py-1.5 mt-1 text-slate-800 font-bold text-xs shadow inline-block max-w-xs md:max-w-md">
+                        <span id="active-char-quote">「現地スポット（200m以内）につくと問題が開くよ！」</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <button onclick="openCharSelectModal()" class="w-full md:w-auto px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-xl font-extrabold text-xs shadow transition flex items-center justify-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-user-plus text-sm"></i>
+                    <span>キャラを変更</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <section class="mb-8 space-y-4">
+            <div class="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <div class="relative w-full md:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="search-input" oninput="handleSearch()" placeholder="コース名・スポット名で検索..." 
+                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition">
+                </div>
+
+                <div class="flex flex-wrap gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0" id="category-buttons">
+                    <!-- Dynamic categories -->
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-route text-indigo-600"></i>
+                    GPS連動コース一覧
+                </h2>
+                <span id="showing-count" class="text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full">
+                    15件を表示中
+                </span>
+            </div>
+
+            <div id="course-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Course Cards generated by JS -->
+            </div>
+
+            <div id="empty-state" class="hidden text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                <i class="fa-solid fa-route text-5xl text-slate-300 mb-4"></i>
+                <h3 class="text-lg font-bold text-slate-600">該当するコースが見つかりませんでした</h3>
+                <button onclick="resetFilters()" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 transition">
+                    全コースを表示
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <div id="char-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transform scale-95 transition-transform duration-300" id="char-modal-container">
+            <div class="p-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-black">栃木お散歩パートナーを選択</h3>
+                    <p class="text-xs text-indigo-100 mt-1">栃木ゆかりのキャラと一緒に各地のなぞなぞを解こう！</p>
+                </div>
+                <button onclick="closeCharSelectModal()" class="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow" id="char-list-grid">
+                <!-- Characters list -->
+            </div>
+        </div>
+    </div>
+
+    <div id="course-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col transform scale-95 transition-transform duration-300" id="modal-container">
+            
+            <div class="relative h-32 bg-slate-800 text-white flex items-end p-6" id="modal-hero">
+                <button onclick="closeModal()" class="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition z-20">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+                <div class="relative z-10 w-full">
+                    <span id="modal-category" class="inline-block px-3 py-1 bg-amber-400 text-slate-900 text-xs font-bold rounded-full mb-1">
+                        カテゴリ
+                    </span>
+                    <h3 id="modal-title" class="text-xl font-extrabold text-white">コースタイトル</h3>
+                </div>
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent"></div>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5 flex-grow">
+                
+                <div class="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100 text-center text-xs">
+                    <div>
+                        <span class="block text-slate-400 font-medium">所要時間</span>
+                        <span id="modal-time" class="font-bold text-slate-700">--</span>
+                    </div>
+                    <div>
+                        <span class="block text-slate-400 font-medium">総距離</span>
+                        <span id="modal-distance" class="font-bold text-slate-700">--</span>
+                    </div>
+                    <div>
+                        <span class="block text-slate-400 font-medium">難易度</span>
+                        <span id="modal-difficulty" class="font-bold text-amber-500">--</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">コース概要</h4>
+                    <p id="modal-desc" class="text-slate-600 text-xs leading-relaxed">---</p>
+                </div>
+
+                <!-- GPS Status Bar inside Modal -->
+                <div class="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-inner">
+                    <div class="flex items-center gap-3 text-xs">
+                        <div class="relative flex items-center justify-center">
+                            <i class="fa-solid fa-satellite-dish text-amber-400 text-lg animate-bounce"></i>
+                            <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                        </div>
+                        <div>
+                            <span class="block font-bold text-amber-300 flex items-center gap-1.5">
+                                📡 リアルタイムGPS自動判定中
+                            </span>
+                            <span id="modal-gps-info" class="text-[11px] text-slate-300">位置情報を取得中...</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="requestGPSLocation()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow">
+                            <i class="fa-solid fa-rotate-right"></i> 位置再取得
+                        </button>
+                        <label class="flex items-center gap-1.5 cursor-pointer bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 text-[11px] text-amber-300 hover:bg-slate-750 transition">
+                            <input type="checkbox" id="demo-mode-toggle" onchange="toggleDemoMode()" class="rounded text-amber-400 focus:ring-0">
+                            <span>🧪 デモ（どこでも解禁）</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Leaflet Interactive Map -->
+                <div class="space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-map-marked-alt text-indigo-600"></i> 全スポット & 現在地マップ
+                        </h4>
+                        <span id="map-location-name" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md">
+                            栃木県内
+                        </span>
+                    </div>
+
+                    <div id="course-map" class="shadow-inner border border-slate-200"></div>
+
+                    <div class="pt-1">
+                        <a id="modal-gmaps-link" href="#" target="_blank" rel="noopener noreferrer" 
+                           class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-diamond-turn-right text-amber-300 text-base"></i>
+                            <span>Googleマップで全ルートを開く</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-xs opacity-80"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Companion Guidance Banner -->
+                <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3.5 flex items-center gap-3">
+                    <div id="modal-partner-avatar" class="text-2xl w-11 h-11 rounded-xl bg-amber-300 flex items-center justify-center flex-shrink-0 shadow">
+                        🍓
+                    </div>
+                    <div>
+                        <span id="modal-partner-name" class="text-xs font-bold text-indigo-900 block">とちまるのナビ</span>
+                        <p id="modal-partner-comment" class="text-xs font-semibold text-slate-700 mt-0.5">「現地（200m以内）に行くとGPSが反応して問題が開くよ！」</p>
+                    </div>
+                </div>
+
+                <!-- Course Progress Bar -->
+                <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-star text-amber-500"></i> スポット解答進捗
+                        </span>
+                        <span id="progress-text" class="text-xs font-bold text-indigo-600">0 / 4 クリア</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div id="progress-bar-fill" class="bg-gradient-to-r from-amber-400 to-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Per-Spot GPS Geofenced Riddle List -->
+                <div class="space-y-3">
+                    <h4 class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-list-check text-indigo-600"></i> 各スポットの現地GPS連動問題
+                    </h4>
+                    
+                    <div id="spots-timeline-list" class="space-y-4">
+                        <!-- Dynamic Spots with GPS distance and riddles -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS Library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        const tochigiCharacters = [
+            {
+                id: "tochimaru",
+                name: "とちまる",
+                title: "栃木県元気ニコニコ大使",
+                avatar: "🍓",
+                bgColor: "bg-red-400",
+                quote: "現地のスポット（200m以内）につくとGPSで自動チェックインされるよ！",
+                comment: "「GPS位置情報を確認中！目的地の近くまで歩いて行こう！」"
+            },
+            {
+                id: "sanomaru",
+                name: "さのまる",
+                title: "佐野ラーメン＆フライコック帽子",
+                avatar: "🍜",
+                bgColor: "bg-amber-400",
+                quote: "GPSで現在地を測りながらお散歩する丸！",
+                comment: "「200m以内に近づくとロックが解ける丸！がんばる丸！」"
+            },
+            {
+                id: "yoichi",
+                name: "与一くん",
+                title: "大田原市・那須与一モチーフ",
+                avatar: "🏹",
+                bgColor: "bg-indigo-400",
+                quote: "GPSの矢で目的地を捉えたぞ！",
+                comment: "「距離が縮まったら問題にチャレンジじゃ！」"
+            },
+            {
+                id: "miruhi",
+                name: "みるひぃ",
+                title: "那須塩原市・生乳生産のシンボル",
+                avatar: "🐮",
+                bgColor: "bg-emerald-400",
+                quote: "GPSで測ったリアルタイムの距離を表示中だモー！",
+                comment: "「おうちでテストしたい時は『🧪デモ解禁』スイッチを押してねモー！」"
+            },
+            {
+                id: "gyoza",
+                name: "ギョーザちゃん",
+                title: "宇都宮餃子PRキャラクター",
+                avatar: "🥟",
+                bgColor: "bg-orange-400",
+                quote: "アツアツのGPS判定で現地なぞなぞを解こう！",
+                comment: "「現地に到着したら正解を入力して送信してね！」"
+            },
+            {
+                id: "sanzaru",
+                name: "日光さんざるトリオ",
+                title: "日光東照宮・見ざる言わざる聞かざる",
+                avatar: "🙈",
+                bgColor: "bg-amber-600",
+                quote: "GPSの精度をよく見ざる！全問正解を目指すウッキ！",
+                comment: "「現地に着いたら自動で問題が開くウッキ！」"
+            }
+        ];
+
+        const coursesData = [
+            {
+                id: 1,
+                title: "歴史を感じる蔵の街レトロ小道コース",
+                category: "歴史・文化",
+                time: "約60分",
+                distance: "3.2 km",
+                difficulty: "★☆☆",
+                icon: "fa-castle",
+                bgGradient: "bg-gradient-to-br from-amber-500 to-amber-700",
+                locationName: "蔵の街大通り (栃木県栃木市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=幸来橋&destination=横山郷土館&waypoints=栃木市立美術館|塚田歴史伝説館",
+                desc: "黒塗りの歴史ある蔵造りの街並みや巴波川沿いを巡るコース。江戸時代の残り香を感じながらのんびり散策できます。",
+                spots: [
+                    { 
+                        name: "巴波川 幸来橋", 
+                        desc: "蔵の街の象徴。川沿いに並ぶ蔵造りの風景を一望。", 
+                        lat: 36.3817, lng: 139.7342,
+                        riddle: { question: "橋の下を気持ちよさそうに泳いでいる、赤や黒の大きな魚は何でしょう？", answer: "コイ" }
+                    },
+                    { 
+                        name: "栃木市立美術館", 
+                        desc: "蔵造りモチーフのモダン建築。地域の美術・歴史を展示。", 
+                        lat: 36.3831, lng: 139.7335,
+                        riddle: { question: "絵の具やキャンバスを使って綺麗な作品を作る人のことを何と呼ぶ？", answer: "画家" }
+                    },
+                    { 
+                        name: "塚田歴史伝説館", 
+                        desc: "江戸時代からの木材回船問屋。美しい日本庭園が見所。", 
+                        lat: 36.3845, lng: 139.7328,
+                        riddle: { question: "川を使ってたくさんの荷物や木材を運んでいた昔の乗り物は？", answer: "船" }
+                    },
+                    { 
+                        name: "横山郷土館", 
+                        desc: "右半分が麻問屋、左半分が銀行の明治時代の珍しい擬洋風建築。", 
+                        lat: 36.3860, lng: 139.7315,
+                        riddle: { question: "お金を預けたり引き出したりする昔からある建物は何でしょう？", answer: "銀行" }
+                    }
+                ]
+            },
+            {
+                id: 2,
+                title: "田川せせらぎ感じる水辺の散歩道",
+                category: "自然・公園",
+                time: "約45分",
+                distance: "2.5 km",
+                difficulty: "★☆☆",
+                icon: "fa-water",
+                bgGradient: "bg-gradient-to-br from-emerald-500 to-teal-700",
+                locationName: "蓼沼親水公園 (栃木県河内郡/宇都宮エリア)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=宮の橋&destination=水辺のデッキ&waypoints=田川遊歩道|錦橋メモリアル広場",
+                desc: "澄んだ川沿いの遊歩道を歩く癒しのコース。季節ごとに桜や新緑が楽しめ、川面を渡る風がとても爽やかです。",
+                spots: [
+                    { 
+                        name: "宮の橋 (スタート)", 
+                        desc: "宇都宮駅近くの田川に架かるシンボル橋。", 
+                        lat: 36.5591, lng: 139.8983,
+                        riddle: { question: "川を渡るために上を通る建築物は何でしょう？", answer: "橋" }
+                    },
+                    { 
+                        name: "田川せせらぎ遊歩道", 
+                        desc: "緑に囲まれた心地よい川沿いウォーキングルート。", 
+                        lat: 36.5575, lng: 139.8970,
+                        riddle: { question: "歩いて健康になる運動のことを英語で何という？", answer: "ウォーキング" }
+                    },
+                    { 
+                        name: "錦橋メモリアル広場", 
+                        desc: "ベンチで一休みできる爽やかな水辺の広場。", 
+                        lat: 36.5550, lng: 139.8955,
+                        riddle: { question: "公園にあって座って休憩できる長い椅子は何？", answer: "ベンチ" }
+                    },
+                    { 
+                        name: "水辺のデッキ (ゴール)", 
+                        desc: "川のせせらぎを間近で感じる絶好のロケーション。", 
+                        lat: 36.5520, lng: 139.8940,
+                        riddle: { question: "サラサラと流れる水の音を表す言葉は「せせ〇ぎ」？", answer: "ら" }
+                    }
+                ]
+            },
+            {
+                id: 3,
+                title: "オリオン通り＆餃子食べ歩き探訪",
+                category: "グルメ・ショピング",
+                time: "約50分",
+                distance: "2.8 km",
+                difficulty: "★☆☆",
+                icon: "fa-utensils",
+                bgGradient: "bg-gradient-to-br from-orange-500 to-red-600",
+                locationName: "オリオン通り商店街 (栃木県宇都宮市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=東武宇都宮駅&destination=東武馬場通り&waypoints=オリオンスクエア|宇都宮餃子通り",
+                desc: "活気あふれるアーケード商店街。香ばしい焼き餃子や揚げ餃子の店が並び、食べ歩きに最適です。",
+                spots: [
+                    { 
+                        name: "東武宇都宮駅前", 
+                        desc: "賑やかなオリオン通りアーケードの西側入口。", 
+                        lat: 36.5593, lng: 139.8836,
+                        riddle: { question: "電車が発着してたくさんの人が乗り降りする場所は？", answer: "駅" }
+                    },
+                    { 
+                        name: "オリオンスクエア", 
+                        desc: "イベントや憩いの場となる賑わい広場。", 
+                        lat: 36.5605, lng: 139.8850,
+                        riddle: { question: "夜空に輝く「オリオン」といえば何の集まり？", answer: "星座" }
+                    },
+                    { 
+                        name: "宇都宮餃子通り", 
+                        desc: "有名店が集結する餃子の聖地ストリート。", 
+                        lat: 36.5620, lng: 139.8880,
+                        riddle: { question: "皮はパリッと具はジューシー！宇都宮名物の料理は？", answer: "餃子" }
+                    },
+                    { 
+                        name: "東武馬場通り", 
+                        desc: "レトロな飲食店やショップが並ぶ散策エリア。", 
+                        lat: 36.5630, lng: 139.8895,
+                        riddle: { question: "「馬場」という文字に入っている動物は何？", answer: "馬" }
+                    }
+                ]
+            },
+            {
+                id: 4,
+                title: "中禅寺湖畔の潮風と絶景ベイエリア",
+                category: "絶景・ベイエリア",
+                time: "約75分",
+                distance: "4.5 km",
+                difficulty: "★★☆",
+                icon: "fa-ship",
+                bgGradient: "bg-gradient-to-br from-cyan-500 to-blue-700",
+                locationName: "中禅寺湖 (栃木県日光市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=立木観音前&destination=英国大使館別荘記念公園&waypoints=中禅寺湖遊覧船桟橋|湖畔展望デッキ",
+                desc: "雄大な男体山を湖面に映す中禅寺湖畔のプロムナード。湖上の爽やかな風と広大なパノラマを楽しめます。",
+                spots: [
+                    { 
+                        name: "中禅寺 立木観音前", 
+                        desc: "湖畔の歴史ある寺院から散策スタート。", 
+                        lat: 36.7328, lng: 139.4939,
+                        riddle: { question: "立木観音様が彫られている素材は何でしょう？", answer: "木" }
+                    },
+                    { 
+                        name: "遊覧船乗り場桟橋", 
+                        desc: "湖と男体山の絶景をバックに撮影できるベストスポット。", 
+                        lat: 36.7345, lng: 139.4960,
+                        riddle: { question: "水の上を浮かんで進み、乗客を乗せて観光する乗り物は？", answer: "船" }
+                    },
+                    { 
+                        name: "湖畔展望デッキ", 
+                        desc: "爽やかな風が吹き抜けるウッドデッキ広場。", 
+                        lat: 36.7360, lng: 139.4990,
+                        riddle: { question: "遠くの景色を見渡すために高く作られた場所を〇〇台という？", answer: "展望" }
+                    },
+                    { 
+                        name: "英国大使館別荘記念公園", 
+                        desc: "国際避暑地としての歴史を伝えるクラシカルな洋館。", 
+                        lat: 36.7310, lng: 139.5030,
+                        riddle: { question: "イギリスの国旗に描かれている十字のマークは何色？", answer: "赤" }
+                    }
+                ]
+            },
+            {
+                id: 5,
+                title: "織姫神社と竹林の静寂パワースポット",
+                category: "パワースポット",
+                time: "約65分",
+                distance: "3.5 km",
+                difficulty: "★★☆",
+                icon: "fa-torii-gate",
+                bgGradient: "bg-gradient-to-br from-green-600 to-emerald-800",
+                locationName: "足利織姫神社 (栃木県足利市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=足利織姫神社大鳥居&destination=もみじ谷の竹林&waypoints=七色の大鳥居|織姫神社社殿",
+                desc: "朱塗りの美しい社殿と七色の鳥居、静かな竹林が広がる参道を巡る縁結びのパワースポットコース。",
+                spots: [
+                    { 
+                        name: "足利織姫神社 一の鳥居", 
+                        desc: "朱塗りの鮮やかな大鳥居から参道階段へ。", 
+                        lat: 36.3403, lng: 139.4475,
+                        riddle: { question: "神社にお参りする時に最初にくぐる門のような建築物は？", answer: "鳥居" }
+                    },
+                    { 
+                        name: "七色の女坂鳥居", 
+                        desc: "縁結びのご利益がある7つのカラーの鳥居。", 
+                        lat: 36.3415, lng: 139.4482,
+                        riddle: { question: "雨上がりの空にかかる7色の美しいアーチは何？", answer: "虹" }
+                    },
+                    { 
+                        name: "織姫神社 本殿", 
+                        desc: "足利市街を一望できる恋人の聖地展望台。", 
+                        lat: 36.3428, lng: 139.4488,
+                        riddle: { question: "七夕の伝説で彦星と仲良しのヒロインの名前は？", answer: "織姫" }
+                    },
+                    { 
+                        name: "もみじ谷の竹林小道", 
+                        desc: "風に揺れる竹の音が心地よい静寂のハイキング道。", 
+                        lat: 36.3440, lng: 139.4495,
+                        riddle: { question: "まっすぐ伸びて節目があり、パンダが大好きな植物は？", answer: "竹" }
+                    }
+                ]
+            },
+            {
+                id: 6,
+                title: "栃木県立美術館とアートストリート",
+                category: "アート・街歩き",
+                time: "約55分",
+                distance: "3.0 km",
+                difficulty: "★☆☆",
+                icon: "fa-palette",
+                bgGradient: "bg-gradient-to-br from-purple-500 to-indigo-700",
+                locationName: "栃木県立美術館 (栃木県宇都宮市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=栃木県立美術館&destination=中央公園大噴水&waypoints=美術館彫刻庭園|桜通り緑地",
+                desc: "緑豊かで美しい彫刻が立ち並ぶアプローチ。個性的カフェやギャラリーが並ぶカルチャーゾーン。",
+                spots: [
+                    { 
+                        name: "栃木県立美術館", 
+                        desc: "近代建築とモダンアートが調和する文化の拠点。", 
+                        lat: 36.5663, lng: 139.8653,
+                        riddle: { question: "たくさんの絵画や彫刻を展示している施設は？", answer: "美術館" }
+                    },
+                    { 
+                        name: "美術館彫刻庭園", 
+                        desc: "屋外に点在する彫刻アートを鑑賞できる芝生庭園。", 
+                        lat: 36.5672, lng: 139.8665,
+                        riddle: { question: "石や金属を削って人や動物の形にした立体作品は？", answer: "彫刻" }
+                    },
+                    { 
+                        name: "桜通りア散歩道", 
+                        desc: "街路樹と洗練されたカフェが並ぶアベニュー。", 
+                        lat: 36.5685, lng: 139.8680,
+                        riddle: { question: "春になるとピンク色の綺麗な花を咲かせる日本の代表的な木は？", answer: "桜" }
+                    },
+                    { 
+                        name: "栃木県中央公園 噴水広場", 
+                        desc: "水と緑に包まれた憩いのゴールスポット。", 
+                        lat: 36.5700, lng: 139.8695,
+                        riddle: { question: "水が空高く勢いよく吹き出す設備は何でしょう？", answer: "噴水" }
+                    }
+                ]
+            },
+            {
+                id: 7,
+                title: "沼ッ原湿原の夕日と高原リゾートコース",
+                category: "絶景・ベイエリア",
+                time: "約40分",
+                distance: "2.2 km",
+                difficulty: "★☆☆",
+                icon: "fa-sun",
+                bgGradient: "bg-gradient-to-br from-rose-500 to-orange-600",
+                locationName: "沼原湿原 (栃木県那須塩原市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=沼原湿原駐車場&destination=那須連山ビューポイント&waypoints=湿原木道入口|ニッコウキスゲ展望台",
+                desc: "木道が整備された那須の湿原。夕暮れ時には山並みに沈む美しい夕日が湿原全体を黄金色に染めます。",
+                spots: [
+                    { 
+                        name: "沼原湿原駐車場", 
+                        desc: "高原の清々しい空気の中で散策準備。", 
+                        lat: 37.1120, lng: 139.9056,
+                        riddle: { question: "車を安全にとめておく場所は何でしょう？", answer: "駐車場" }
+                    },
+                    { 
+                        name: "湿原木道入口", 
+                        desc: "湿地植物を守るために整備された歩きやすい木道。", 
+                        lat: 37.1132, lng: 139.9068,
+                        riddle: { question: "湿地の上に板を並べて作った歩きやすい道は何？", answer: "木道" }
+                    },
+                    { 
+                        name: "ニッコウキスゲ群生地", 
+                        desc: "季節ごとに高山植物が咲き誇る絶景テラス。", 
+                        lat: 37.1145, lng: 139.9080,
+                        riddle: { question: "ニッコウキスゲの花は何色をして咲くでしょう？", answer: "黄色" }
+                    },
+                    { 
+                        name: "那須連山ビューポイント", 
+                        desc: "雄大な那須の山々と夕日を一望できるポイント。", 
+                        lat: 37.1160, lng: 139.9095,
+                        riddle: { question: "夕方になると西の空を赤く染めながら沈む太陽の光は何？", answer: "夕日" }
+                    }
+                ]
+            },
+            {
+                id: 8,
+                title: "八幡山公園タワーと星空夜景コース",
+                category: "ナイトウォーク",
+                time: "約50分",
+                distance: "2.6 km",
+                difficulty: "★★☆",
+                icon: "fa-moon",
+                bgGradient: "bg-gradient-to-br from-slate-800 to-indigo-950",
+                locationName: "八幡山公園 (栃木県宇都宮市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=八幡山公園南口&destination=見晴らし展望台&waypoints=アドベンチャー吊り橋|宇都宮タワー",
+                desc: "市内を一望できる宇都宮タワーとアドベンチャー橋。輝く夜景と夜空を望むナイトウォーク。",
+                spots: [
+                    { 
+                        name: "八幡山公園 南口", 
+                        desc: "公園へのアプローチ。夜間はライトアップが綺麗。", 
+                        lat: 36.5686, lng: 139.8906,
+                        riddle: { question: "太陽が沈んで暗くなった時間帯を何という？", answer: "夜" }
+                    },
+                    { 
+                        name: "アドベンチャー吊り橋", 
+                        desc: "スリル満点の吊り橋から見る夜の市内風景。", 
+                        lat: 36.5700, lng: 139.8918,
+                        riddle: { question: "ロープで吊るされていて渡るとゆらゆら揺れる橋は？", answer: "吊り橋" }
+                    },
+                    { 
+                        name: "宇都宮タワー前広場", 
+                        desc: "宇都宮のシンボルタワーがライトで輝く広場。", 
+                        lat: 36.5715, lng: 139.8930,
+                        riddle: { question: "高く聳え立つ塔のことを英語で何という？", answer: "タワー" }
+                    },
+                    { 
+                        name: "見晴らし展望台", 
+                        desc: "宇都宮市街の夜景が一面に広がるロマンチックなゴール。", 
+                        lat: 36.5728, lng: 139.8942,
+                        riddle: { question: "夜の街の明かりがキラキラ輝いて見える綺麗な景色は？", answer: "夜景" }
+                    }
+                ]
+            },
+            {
+                id: 9,
+                title: "竜化の滝と塩原温泉渓谷ハイキング",
+                category: "自然・公園",
+                time: "約90分",
+                distance: "5.0 km",
+                difficulty: "★★★",
+                icon: "fa-tree",
+                bgGradient: "bg-gradient-to-br from-lime-600 to-green-800",
+                locationName: "竜化の滝 (栃木県那須塩原市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=竜化の滝遊歩道入口&destination=竜化の滝観瀑台&waypoints=箒川渓谷歩道|風挙の滝",
+                desc: "「飛竜が天に昇る」姿に似た竜化の滝を目指す渓谷歩道。マイナスイオンと深緑の樹木に包まれます。",
+                spots: [
+                    { 
+                        name: "竜化の滝 遊歩道入口", 
+                        desc: "塩原温泉郷の自然に囲まれたハイキングスタート地点。", 
+                        lat: 36.9582, lng: 139.8214,
+                        riddle: { question: "温かいお湯が湧き出て旅の疲れを癒やす場所は？", answer: "温泉" }
+                    },
+                    { 
+                        name: "箒川渓谷せせらぎ道", 
+                        desc: "渓流のせせらぎを聴きながら進む豊かな森の道。", 
+                        lat: 36.9595, lng: 139.8228,
+                        riddle: { question: "山と山の間を流れる深い川の谷間を何という？", answer: "渓谷" }
+                    },
+                    { 
+                        name: "風挙の滝", 
+                        desc: "竜化の滝の手前にある優美で涼しげな滝。", 
+                        lat: 36.9610, lng: 139.8242,
+                        riddle: { question: "空気が動いて肌に心地よく感じる現象は何？", answer: "風" }
+                    },
+                    { 
+                        name: "竜化の滝 観瀑台", 
+                        desc: "岩肌を三段に躍動する名瀑を間近で体感！", 
+                        lat: 36.9625, lng: 139.8255,
+                        riddle: { question: "空を自由に飛んで火を吐く伝説の生き物は「〇〇」？", answer: "竜" }
+                    }
+                ]
+            },
+            {
+                id: 10,
+                title: "日光杉並木と日光東照宮ご利益コース",
+                category: "パワースポット",
+                time: "約70分",
+                distance: "4.0 km",
+                difficulty: "★★☆",
+                icon: "fa-vihara",
+                bgGradient: "bg-gradient-to-br from-red-600 to-amber-800",
+                locationName: "日光東照宮 (栃木県日光市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=日光杉並木街道&destination=陽明門前広場&waypoints=日光石鳥居|三神庫三猿",
+                desc: "世界記録にも認定される壮大な日光杉並木と神聖な東照宮を参拝する歴史とご利益の超王道コース。",
+                spots: [
+                    { 
+                        name: "日光杉並木街道", 
+                        desc: "樹齢数百年の巨大な杉並木が続く荘厳なアプローチ。", 
+                        lat: 36.7550, lng: 139.5950,
+                        riddle: { question: "花粉症の原因にもなる、まっすぐ高く伸びる木は？", answer: "杉" }
+                    },
+                    { 
+                        name: "日光東照宮 石鳥居", 
+                        desc: "重要文化財の重厚な石造りの大鳥居。", 
+                        lat: 36.7570, lng: 139.5972,
+                        riddle: { question: "木ではなく硬くて重い素材で作られた鳥居を「〇〇鳥居」という？", answer: "石" }
+                    },
+                    { 
+                        name: "三神庫 (三猿の彫刻)", 
+                        desc: "見ざる・言わざる・聞かざるで有名な木彫りの三猿。", 
+                        lat: 36.7581, lng: 139.5989,
+                        riddle: { question: "「見ざる・言わざる・聞かざる」の有名な動物は何？", answer: "猿" }
+                    },
+                    { 
+                        name: "陽明門前広場", 
+                        desc: "国宝・陽明門の豪華絢爛な装飾を仰ぎ見るゴール。", 
+                        lat: 36.7592, lng: 139.6001,
+                        riddle: { question: "日光東照宮にお祀りされている江戸幕府を開いた人物は徳川〇〇？", answer: "家康" }
+                    }
+                ]
+            },
+            {
+                id: 11,
+                title: "栃木県庁昭和館と芝生広場ウォーク",
+                category: "アート・街歩き",
+                time: "約45分",
+                distance: "2.5 km",
+                difficulty: "★☆☆",
+                icon: "fa-building",
+                bgGradient: "bg-gradient-to-br from-blue-500 to-slate-700",
+                locationName: "栃木県庁 昭和館 (栃木県宇都宮市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=栃木県庁正面回廊&destination=昭和館展望ギャラリー&waypoints=県庁前芝生広場|百人一首レリーフ",
+                desc: "歴史ある昭和館のクラシックな建築美と、青々とした広い県庁前芝生広場を散策するシティコース。",
+                spots: [
+                    { 
+                        name: "栃木県庁 正門アプローチ", 
+                        desc: "美しい街路樹とモダンな県庁庁舎。", 
+                        lat: 36.5658, lng: 139.8831,
+                        riddle: { question: "栃木県の行政の中心となる建物は「栃木県〇」？", answer: "庁" }
+                    },
+                    { 
+                        name: "県庁前芝生広場", 
+                        desc: "開放的な芝生と噴水が広がる憩いのスペース。", 
+                        lat: 36.5668, lng: 139.8840,
+                        riddle: { question: "一面緑色で寝転がると気持ちいい植物の広場は？", answer: "芝生" }
+                    },
+                    { 
+                        name: "百人一首のレリーフ小道", 
+                        desc: "栃木ゆかりの文化・和歌を感じるプロムナード。", 
+                        lat: 36.5678, lng: 139.8850,
+                        riddle: { question: "100人の歌人の歌を1首ずつ集めたカルタで有名なものは？", answer: "百人一首" }
+                    },
+                    { 
+                        name: "昭和館 復元レトロ建築", 
+                        desc: "昭和初期の重厚な貴賓室や展望ギャラリーが見所。", 
+                        lat: 36.5688, lng: 139.8860,
+                        riddle: { question: "明治・大正の次の元号は何でしょう？", answer: "昭和" }
+                    }
+                ]
+            },
+            {
+                id: 12,
+                title: "旧青木家那須別邸と道の駅明治の森",
+                category: "歴史・文化",
+                time: "約60分",
+                distance: "3.2 km",
+                difficulty: "★☆☆",
+                icon: "fa-landmark",
+                bgGradient: "bg-gradient-to-br from-stone-600 to-red-900",
+                locationName: "旧青木家那須別邸 (栃木県那須塩原市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=道の駅明治の森なすの&destination=ハンナガーデン花畑&waypoints=白樺並木アプローチ|旧青木家那須別邸",
+                desc: "明治時代の外交官青木周蔵の白亜の洋館と、白樺並木が美しいノスタルジックな歴史散策ルート。",
+                spots: [
+                    { 
+                        name: "道の駅 明治の森なすの", 
+                        desc: "新鮮な地元野菜やスイーツが揃う道の駅。", 
+                        lat: 36.9298, lng: 139.9678,
+                        riddle: { question: "ドライブの途中に立ち寄ってお買い物や休憩ができる施設は「道の〇」？", answer: "駅" }
+                    },
+                    { 
+                        name: "白樺並木プロムナード", 
+                        desc: "異国情緒が漂う白樺の木々に包まれた一本道。", 
+                        lat: 36.9310, lng: 139.9690,
+                        riddle: { question: "幹の皮が白いのが特徴の高原の木は何？", answer: "白樺" }
+                    },
+                    { 
+                        name: "旧青木家那須別邸 (洋館)", 
+                        desc: "国家指定重要文化財の優美なドイツ風建築。", 
+                        lat: 36.9325, lng: 139.9705,
+                        riddle: { question: "和風の家に対して、西洋の様式で建てられた家を何という？", answer: "洋館" }
+                    },
+                    { 
+                        name: "ハンナガーデン花畑", 
+                        desc: "四季折々のひまわりやコスモスが咲き誇る大花園。", 
+                        lat: 36.9340, lng: 139.9720,
+                        riddle: { question: "夏になると太陽の方を向いて咲く黄色い大きな花は？", answer: "ひまわり" }
+                    }
+                ]
+            },
+            {
+                id: 13,
+                title: "あしかがフラワーパーク湖畔と花々道",
+                category: "自然・公園",
+                time: "約50分",
+                distance: "2.8 km",
+                difficulty: "★☆☆",
+                icon: "fa-seedling",
+                bgGradient: "bg-gradient-to-br from-pink-500 to-rose-700",
+                locationName: "あしかがフラワーパーク (栃木県足利市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=正面ゲート&destination=四季の庭園&waypoints=大藤棚テラス|フラワームーン水辺橋",
+                desc: "四季折々の花が咲き誇る花園と水辺のプロムナード。カメラを持って花々の甘い香りに包まれましょう。",
+                spots: [
+                    { 
+                        name: "正面ゲートプラザ", 
+                        desc: "季節の寄せ植えと花々の香りに迎えられるスタート地点。", 
+                        lat: 36.3146, lng: 139.5204,
+                        riddle: { question: "施設に入るために通る入口の門を英語で何という？", answer: "ゲート" }
+                    },
+                    { 
+                        name: "大藤棚テラス", 
+                        desc: "樹齢150年を超える大藤の圧巻の枝ぶりが見事。", 
+                        lat: 36.3158, lng: 139.5218,
+                        riddle: { question: "薄紫色の花が棚から垂れ下がって咲く有名なお花は？", answer: "藤" }
+                    },
+                    { 
+                        name: "フラワームーン水辺橋", 
+                        desc: "池の周りを彩る花々と水面の反射が美しい橋。", 
+                        lat: 36.3170, lng: 139.5232,
+                        riddle: { question: "英語で「ムーン」といえば夜空に浮かぶ何のこと？", answer: "月" }
+                    },
+                    { 
+                        name: "四季のローズ＆ピラミッド庭園", 
+                        desc: "色鮮やかなバラと花々のピラミッドが輝く広場。", 
+                        lat: 36.3182, lng: 139.5245,
+                        riddle: { question: "トゲがあるけれど、とても綺麗で情熱的な赤い花は？", answer: "バラ" }
+                    }
+                ]
+            },
+            {
+                id: 14,
+                title: "矢板・塩原ゆかりの文豪古道散策コース",
+                category: "歴史・文化",
+                time: "約65分",
+                distance: "3.6 km",
+                difficulty: "★★☆",
+                icon: "fa-book-open",
+                bgGradient: "bg-gradient-to-br from-amber-700 to-stone-800",
+                locationName: "補陀落山 観音寺/長生寺周辺 (栃木県矢板市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=長生寺参道&destination=古民家茶屋跡&waypoints=文豪文学碑小道|歴史の松並木",
+                desc: "夏目漱石や尾崎紅葉など多くの文豪が訪れた歴史情緒あふれる古道。句碑や静寂な境内を歩きます。",
+                spots: [
+                    { 
+                        name: "長生寺 参道入口", 
+                        desc: "歴史を感じさせる静かな寺院のアプローチ。", 
+                        lat: 36.8080, lng: 139.9320,
+                        riddle: { question: "お坊さんがいて、鐘をついたりお墓参りをする場所は？", answer: "お寺" }
+                    },
+                    { 
+                        name: "文豪文学碑小道", 
+                        desc: "矢板・塩原を訪れた文豪たちの歌碑・句碑が並ぶ道。", 
+                        lat: 36.8095, lng: 139.9335,
+                        riddle: { question: "『吾輩は猫である』を書いた超有名な小説家は夏目〇〇？", answer: "漱石" }
+                    },
+                    { 
+                        name: "歴史の松並木街道", 
+                        desc: "古くからの旅人が歩いた街道の面影を残す松並木。", 
+                        lat: 36.8110, lng: 139.9350,
+                        riddle: { question: "一年中緑色の葉を保ち、お正月の門松にも使われる木は？", answer: "松" }
+                    },
+                    { 
+                        name: "古民家茶屋跡", 
+                        desc: "旅の途中で文豪たちが羽を休めたとされる憩いの地。", 
+                        lat: 36.8125, lng: 139.9365,
+                        riddle: { question: "昔ながらの日本家屋で、お茶や団子を食べて休憩するお店は？", answer: "茶屋" }
+                    }
+                ]
+            },
+            {
+                id: 15,
+                title: "バンバひろば＆昭和レトロサブカル横丁",
+                category: "グルメ・ショピング",
+                time: "約55分",
+                distance: "3.1 km",
+                difficulty: "★☆☆",
+                icon: "fa-gamepad",
+                bgGradient: "bg-gradient-to-br from-indigo-600 to-fuchsia-700",
+                locationName: "宇都宮市バンバ市民広場 (栃木県宇都宮市)",
+                googleMapUrl: "https://www.google.com/maps/dir/?api=1&origin=バンバ市民広場&destination=パルコ跡スクエア&waypoints=二荒山神社大階段|レトロ玩具横丁",
+                desc: "二荒山神社前バンバひろばからレトロゲームやカプセルトイショップが並ぶ楽しさ満載のストリート。",
+                spots: [
+                    { 
+                        name: "バンバ市民広場", 
+                        desc: "宇都宮の中心地にあるイベントと憩いの大広場。", 
+                        lat: 36.5620, lng: 139.8860,
+                        riddle: { question: "人が集まってお祭りやステージ発表を行う広場イベントの「催し」は何？", answer: "イベント" }
+                    },
+                    { 
+                        name: "宇都宮二荒山神社 大階段", 
+                        desc: "下野国一の宮の迫力ある大鳥居と大階段。", 
+                        lat: 36.5632, lng: 139.8872,
+                        riddle: { question: "一段一段のぼって上に向かう段々の段差は何？", answer: "階段" }
+                    },
+                    { 
+                        name: "レトロ玩具・ガチャ横丁", 
+                        desc: "昭和レトロなトイやカプセルトイショップが並ぶ小道。", 
+                        lat: 36.5645, lng: 139.8885,
+                        riddle: { question: "ハンドルを回すとカプセルから何が出てくる？", answer: "おもちゃ" }
+                    },
+                    { 
+                        name: "パルコ跡シティスクエア", 
+                        desc: "若者や家族連れで賑わう活気あるショッピングストリート。", 
+                        lat: 36.5658, lng: 139.8898,
+                        riddle: { question: "いろいろなお店が入っていてお買い物が楽しめる街のエリアは？", answer: "ショッピング" }
+                    }
+                ]
+            }
+        ];
+
+        let currentCategory = "all";
+        let searchQuery = "";
+        let selectedCourse = null;
+        let activeCharId = localStorage.getItem('selectedTochigiChar') || 'tochimaru';
+        
+        let checkedInSpotKeys = JSON.parse(localStorage.getItem('checkedInSpotKeys') || '[]');
+        let solvedSpotKeys = JSON.parse(localStorage.getItem('solvedSpotKeys') || '[]');
+
+        // GPS State
+        let userPos = null; // { lat, lng, accuracy }
+        let isDemoUnlockMode = false;
+        let watchPositionId = null;
+
+        // Leaflet Map state
+        let mapInstance = null;
+        let mapMarkersGroup = null;
+        let userMarker = null;
+        let mapPolyline = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderActiveChar();
+            renderCategories();
+            renderCourses();
+            updateClearedStats();
+            requestGPSLocation();
+        });
+
+        function requestGPSLocation() {
+            const icon = document.getElementById('gps-status-icon');
+            const text = document.getElementById('gps-status-text');
+
+            if (!navigator.geolocation) {
+                if (text) text.textContent = "GPS非対応端末";
+                return;
+            }
+
+            if (text) text.textContent = "GPS連動中...";
+            if (icon) icon.className = "fa-solid fa-spinner fa-spin text-amber-300";
+
+            if (watchPositionId !== null) {
+                navigator.geolocation.clearWatch(watchPositionId);
+            }
+
+            // Real-time geolocation tracking
+            watchPositionId = navigator.geolocation.watchPosition(
+                (position) => {
+                    userPos = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: Math.round(position.coords.accuracy)
+                    };
+
+                    if (text) text.textContent = `GPS追跡中 (±${userPos.accuracy}m)`;
+                    if (icon) icon.className = "fa-solid fa-location-crosshairs text-emerald-300 animate-pulse";
+
+                    const modalGpsInfo = document.getElementById('modal-gps-info');
+                    if (modalGpsInfo) {
+                        modalGpsInfo.textContent = `現在地: 北緯${userPos.lat.toFixed(4)}° 東経${userPos.lng.toFixed(4)}° (精度: ±${userPos.accuracy}m)`;
+                    }
+
+                    updateUserPinOnMap();
+                    if (selectedCourse) {
+                        renderSpotRiddlesList();
+                    }
+                },
+                (error) => {
+                    console.warn("GPS error:", error);
+                    let errMessage = "GPS取得失敗 (デモモード利用可)";
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errMessage = "位置情報の利用が許可されていません";
+                    }
+                    if (text) text.textContent = errMessage;
+                    if (icon) icon.className = "fa-solid fa-triangle-exclamation text-amber-300";
+
+                    const modalGpsInfo = document.getElementById('modal-gps-info');
+                    if (modalGpsInfo) {
+                        modalGpsInfo.textContent = "GPS位置情報を取得できません。右上の『🧪 デモ（どこでも解禁）』をONにするとテストできます。";
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 3000
+                }
+            );
+        }
+
+        // Haversine formula for distance computation in meters
+        function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Earth's radius in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return Math.round(R * c);
+        }
+
+        // Calculate Bearing / Direction in degrees
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const y = Math.sin((lon2 - lon1) * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180);
+            const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                      Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos((lon2 - lon1) * Math.PI / 180);
+            const brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+            
+            const compassSector = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+            return compassSector[Math.round(brng / 45) % 8];
+        }
+
+        function formatDistanceText(meters) {
+            if (meters === null || meters === undefined) return "位置未取得";
+            if (meters < 1000) {
+                return `${meters} m`;
+            }
+            return `${(meters / 1000).toFixed(2)} km`;
+        }
+
+        function toggleDemoMode() {
+            isDemoUnlockMode = document.getElementById('demo-mode-toggle').checked;
+            if (selectedCourse) {
+                renderSpotRiddlesList();
+            }
+        }
+
+        function getActiveChar() {
+            return tochigiCharacters.find(c => c.id === activeCharId) || tochigiCharacters[0];
+        }
+
+        function renderActiveChar() {
+            const char = getActiveChar();
+            document.getElementById('active-char-avatar').textContent = char.avatar;
+            document.getElementById('active-char-avatar').className = `w-16 h-16 rounded-2xl ${char.bgColor} border-2 border-white flex items-center justify-center text-3xl shadow-lg transform transition hover:rotate-6`;
+            document.getElementById('active-char-name').textContent = char.name;
+            document.getElementById('active-char-quote').textContent = `「${char.quote}」`;
+        }
+
+        function selectPartner(id) {
+            activeCharId = id;
+            localStorage.setItem('selectedTochigiChar', id);
+            renderActiveChar();
+            closeCharSelectModal();
+        }
+
+        function openCharSelectModal() {
+            const grid = document.getElementById('char-list-grid');
+            grid.innerHTML = tochigiCharacters.map(char => {
+                const isSelected = char.id === activeCharId;
+                return `
+                    <div class="char-card border-2 ${isSelected ? 'border-amber-400 bg-amber-50/50' : 'border-slate-100 bg-white'} rounded-2xl p-4 flex gap-4 items-center cursor-pointer shadow-sm hover:shadow-md"
+                        onclick="selectPartner('${char.id}')">
+                        <div class="w-14 h-14 rounded-2xl ${char.bgColor} text-2xl flex items-center justify-center text-white flex-shrink-0 shadow">
+                            ${char.avatar}
+                        </div>
+                        <div class="flex-grow">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-extrabold text-slate-800 text-sm">${char.name}</h4>
+                                ${isSelected ? '<span class="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">選択中</span>' : ''}
+                            </div>
+                            <span class="text-xs font-semibold text-slate-400 block">${char.title}</span>
+                            <p class="text-xs text-slate-600 mt-1 italic">${char.quote}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const modal = document.getElementById('char-modal');
+            const container = document.getElementById('char-modal-container');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-95');
+            container.classList.add('scale-100');
+        }
+
+        function closeCharSelectModal() {
+            const modal = document.getElementById('char-modal');
+            const container = document.getElementById('char-modal-container');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-100');
+            container.classList.add('scale-95');
+        }
+
+        function renderCategories() {
+            const categories = ["all", ...new Set(coursesData.map(c => c.category))];
+            const container = document.getElementById('category-buttons');
+            
+            container.innerHTML = categories.map(cat => {
+                const label = cat === "all" ? "すべて" : cat;
+                const activeClass = currentCategory === cat 
+                    ? "bg-indigo-600 text-white shadow-md" 
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200";
+
+                return `
+                    <button onclick="filterCategory('${cat}')" 
+                        class="px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${activeClass}">
+                        ${label}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderCourses() {
+            const grid = document.getElementById('course-grid');
+            const emptyState = document.getElementById('empty-state');
+
+            const filtered = coursesData.filter(course => {
+                const matchesCategory = currentCategory === "all" || course.category === currentCategory;
+                const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      course.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                      course.locationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                      course.spots.some(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+                return matchesCategory && matchesSearch;
+            });
+
+            document.getElementById('showing-count').textContent = `${filtered.length}件を表示中`;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            grid.innerHTML = filtered.map(course => {
+                const totalSpots = course.spots.length;
+                let clearedSpotsCount = 0;
+                course.spots.forEach((_, idx) => {
+                    if (solvedSpotKeys.includes(`${course.id}_${idx}`)) {
+                        clearedSpotsCount++;
+                    }
+                });
+
+                return `
+                    <div class="course-card bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm flex flex-col justify-between cursor-pointer"
+                        onclick="openModal(${course.id})">
+                        <div>
+                            <div class="${course.bgGradient} h-36 p-5 text-white relative flex flex-col justify-between">
+                                <div class="flex justify-between items-start">
+                                    <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold border border-white/20">
+                                        ${course.category}
+                                    </span>
+                                    <div class="flex gap-1.5">
+                                        ${clearedSpotsCount > 0 ? `
+                                            <span class="px-2.5 py-1 bg-amber-400 text-slate-900 rounded-full text-xs font-black shadow">
+                                                ${clearedSpotsCount}/${totalSpots} クリア
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl flex-shrink-0">
+                                        <i class="fa-solid ${course.icon}"></i>
+                                    </div>
+                                    <h3 class="font-bold text-base leading-tight drop-shadow-sm">${course.title}</h3>
+                                </div>
+                            </div>
+
+                            <div class="p-5 space-y-3">
+                                <p class="text-xs font-bold text-indigo-600 flex items-center gap-1">
+                                    <i class="fa-solid fa-location-dot"></i> ${course.locationName}
+                                </p>
+                                <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed">${course.desc}</p>
+                                
+                                <div class="flex justify-between items-center text-xs font-semibold text-slate-600 bg-slate-50 p-2.5 rounded-2xl">
+                                    <span class="flex items-center gap-1"><i class="fa-regular fa-clock text-indigo-500"></i> ${course.time}</span>
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-person-walking text-emerald-500"></i> ${course.distance}</span>
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-gauge text-amber-500"></i> ${course.difficulty}</span>
+                                </div>
+
+                                <div class="pt-1 flex flex-wrap gap-1">
+                                    ${course.spots.map((s, idx) => {
+                                        const key = `${course.id}_${idx}`;
+                                        const isSolved = solvedSpotKeys.includes(key);
+                                        return `
+                                            <span class="text-[10px] font-bold ${isSolved ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-slate-100 text-slate-600'} px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                ${isSolved ? '✓' : idx + 1 + '.'} ${s.name}
+                                            </span>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="px-5 pb-5 pt-0 flex gap-2">
+                            <button class="flex-grow py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-crosshairs text-indigo-600"></i>
+                                <span>GPS連動のなぞなぞ挑戦</span>
+                            </button>
+                            <a href="${course.googleMapUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+                               class="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="Googleマップでルートを開く">
+                                <i class="fa-solid fa-diamond-turn-right text-base"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterCategory(cat) {
+            currentCategory = cat;
+            renderCategories();
+            renderCourses();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value;
+            renderCourses();
+        }
+
+        function resetFilters() {
+            currentCategory = "all";
+            searchQuery = "";
+            document.getElementById('search-input').value = "";
+            renderCategories();
+            renderCourses();
+        }
+
+        function openModal(id) {
+            selectedCourse = coursesData.find(c => c.id === id);
+            if (!selectedCourse) return;
+
+            document.getElementById('modal-title').textContent = selectedCourse.title;
+            document.getElementById('modal-category').textContent = selectedCourse.category;
+            document.getElementById('modal-time').textContent = selectedCourse.time;
+            document.getElementById('modal-distance').textContent = selectedCourse.distance;
+            document.getElementById('modal-difficulty').textContent = selectedCourse.difficulty;
+            document.getElementById('modal-desc').textContent = selectedCourse.desc;
+            document.getElementById('map-location-name').textContent = selectedCourse.locationName;
+
+            const gmapsBtn = document.getElementById('modal-gmaps-link');
+            gmapsBtn.href = selectedCourse.googleMapUrl;
+
+            const hero = document.getElementById('modal-hero');
+            hero.className = `relative h-32 ${selectedCourse.bgGradient} text-white flex items-end p-6`;
+
+            const char = getActiveChar();
+            document.getElementById('modal-partner-avatar').textContent = char.avatar;
+            document.getElementById('modal-partner-avatar').className = `text-2xl w-11 h-11 rounded-xl ${char.bgColor} text-white flex items-center justify-center flex-shrink-0 shadow`;
+            document.getElementById('modal-partner-name').textContent = `${char.name}のナビ`;
+
+            renderSpotRiddlesList();
+
+            const modal = document.getElementById('course-modal');
+            const container = document.getElementById('modal-container');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-95');
+            container.classList.add('scale-100');
+
+            setTimeout(() => {
+                initLeafletRouteMap(selectedCourse.spots);
+            }, 250);
+        }
+
+        function renderSpotRiddlesList() {
+            if (!selectedCourse) return;
+
+            const container = document.getElementById('spots-timeline-list');
+            const total = selectedCourse.spots.length;
+            let solvedCount = 0;
+
+            container.innerHTML = selectedCourse.spots.map((spot, idx) => {
+                const key = `${selectedCourse.id}_${idx}`;
+                const isSolved = solvedSpotKeys.includes(key);
+                let isCheckedIn = checkedInSpotKeys.includes(key);
+
+                if (isSolved) solvedCount++;
+
+                // Real-time distance and bearing computation
+                let distMeters = null;
+                let bearingText = "";
+                if (userPos) {
+                    distMeters = calculateDistanceMeters(userPos.lat, userPos.lng, spot.lat, spot.lng);
+                    bearingText = calculateBearing(userPos.lat, userPos.lng, spot.lat, spot.lng);
+
+                    // Automatic geofence check-in if within 200m
+                    if (distMeters <= 200 && !isCheckedIn) {
+                        isCheckedIn = true;
+                        if (!checkedInSpotKeys.includes(key)) {
+                            checkedInSpotKeys.push(key);
+                            localStorage.setItem('checkedInSpotKeys', JSON.stringify(checkedInSpotKeys));
+                        }
+                    }
+                }
+
+                // Demo mode override
+                if (isDemoUnlockMode && !isCheckedIn) {
+                    isCheckedIn = true;
+                }
+
+                const isFirst = idx === 0;
+                const isLast = idx === total - 1;
+                const badgeColor = isFirst ? 'bg-emerald-500' : (isLast ? 'bg-amber-500' : 'bg-indigo-600');
+                const badgeLabel = isFirst ? 'スタート' : (isLast ? 'ゴール' : `スポット ${idx + 1}`);
+
+                return `
+                    <div class="relative pl-9 timeline-step flex items-start gap-3">
+                        <div class="absolute left-0 top-1 w-7 h-7 rounded-full ${badgeColor} text-white font-bold text-xs flex items-center justify-center shadow z-10">
+                            ${idx + 1}
+                        </div>
+
+                        <div class="bg-white p-4 rounded-2xl border ${isSolved ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200'} shadow-sm flex-grow space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="text-[10px] font-extrabold text-white ${badgeColor} px-2 py-0.5 rounded-full inline-block mb-1">
+                                        ${badgeLabel}
+                                    </span>
+                                    <h5 class="font-extrabold text-xs sm:text-sm text-slate-800 flex items-center gap-1.5">
+                                        ${spot.name}
+                                    </h5>
+                                </div>
+                                <div class="text-right">
+                                    ${isSolved ? `
+                                        <span class="text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-circle-check"></i> 正解！
+                                        </span>
+                                    ` : (isCheckedIn ? `
+                                        <span class="text-xs font-bold text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full inline-flex items-center gap-1 gps-pulse-badge">
+                                            🎯 現地到達（問題解禁）
+                                        </span>
+                                    ` : `
+                                        <span class="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                                            🔒 現地で自動解禁
+                                        </span>
+                                    `)}
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-500 leading-relaxed">${spot.desc}</p>
+
+                            <!-- GPS Real-time Distance & Navigation Badge -->
+                            <div class="pt-2 border-t border-slate-100">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs">
+                                    <span class="font-bold text-slate-700 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-compass text-indigo-500"></i>
+                                        現在地から: <strong class="text-indigo-600 text-sm font-black">${formatDistanceText(distMeters)}</strong>
+                                        ${bearingText ? `<span class="bg-indigo-50 text-indigo-700 text-[11px] px-2 py-0.5 rounded-md font-extrabold">（${bearingText}方向）</span>` : ''}
+                                    </span>
+                                    ${distMeters !== null && distMeters <= 200 ? `
+                                        <span class="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-sm flex items-center gap-1">
+                                            <i class="fa-solid fa-circle-dot text-emerald-500 animate-ping"></i> 200mエリア内到着！
+                                        </span>
+                                    ` : `
+                                        <span class="text-[11px] text-slate-400">
+                                            (200m以内で自動判定)
+                                        </span>
+                                    `}
+                                </div>
+
+                                ${!isCheckedIn && !isSolved ? `
+                                    <div class="flex items-center justify-between gap-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                                        <span class="text-xs font-bold text-amber-900 flex items-center gap-1">
+                                            <i class="fa-solid fa-lock text-amber-600"></i> スポットに近づくと解禁されます
+                                        </span>
+                                        <button onclick="manualCheckinSpot(${idx})" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold text-xs rounded-lg shadow transition whitespace-nowrap">
+                                            📍 手動チェックイン
+                                        </button>
+                                    </div>
+                                ` : `
+                                    <!-- Riddle Display -->
+                                    <div class="space-y-2 bg-indigo-50/70 p-3 rounded-xl border border-indigo-100">
+                                        <div class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                                            <i class="fa-solid fa-puzzle-piece text-indigo-600"></i>
+                                            <span>現地なぞなぞ問題</span>
+                                        </div>
+                                        <p class="text-xs text-indigo-950 font-medium bg-white p-2.5 rounded-lg border border-indigo-100 shadow-sm">
+                                            ${spot.riddle.question}
+                                        </p>
+
+                                        ${isSolved ? `
+                                            <div class="text-xs font-bold text-emerald-700 bg-emerald-100 p-2 rounded-lg border border-emerald-200">
+                                                正解: ${spot.riddle.answer} （判定クリア！）
+                                            </div>
+                                        ` : `
+                                            <div class="flex gap-2 pt-1">
+                                                <input type="text" id="riddle-input-${idx}" placeholder="答えを入力..." 
+                                                    class="flex-grow px-3 py-1.5 text-xs rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                <button onclick="submitSpotRiddle(${idx})" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs transition">
+                                                    回答する
+                                                </button>
+                                            </div>
+                                            <p id="riddle-feedback-${idx}" class="text-[11px] font-bold hidden mt-1"></p>
+                                        `}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const percent = Math.round((solvedCount / total) * 100);
+            document.getElementById('progress-text').textContent = `${solvedCount} / ${total} クリア`;
+            document.getElementById('progress-bar-fill').style.width = `${percent}%`;
+        }
+
+        function manualCheckinSpot(spotIdx) {
+            if (!selectedCourse) return;
+            const key = `${selectedCourse.id}_${spotIdx}`;
+            if (!checkedInSpotKeys.includes(key)) {
+                checkedInSpotKeys.push(key);
+                localStorage.setItem('checkedInSpotKeys', JSON.stringify(checkedInSpotKeys));
+            }
+            renderSpotRiddlesList();
+            renderCourses();
+        }
+
+        function submitSpotRiddle(spotIdx) {
+            if (!selectedCourse) return;
+            const spot = selectedCourse.spots[spotIdx];
+            const input = document.getElementById(`riddle-input-${spotIdx}`);
+            const feedback = document.getElementById(`riddle-feedback-${spotIdx}`);
+            
+            if (!input || !feedback) return;
+            
+            const userAns = input.value.trim();
+            if (!userAns) return;
+
+            if (userAns === spot.riddle.answer) {
+                const key = `${selectedCourse.id}_${spotIdx}`;
+                if (!solvedSpotKeys.includes(key)) {
+                    solvedSpotKeys.push(key);
+                    localStorage.setItem('solvedSpotKeys', JSON.stringify(solvedSpotKeys));
+                }
+                renderSpotRiddlesList();
+                renderCourses();
+            } else {
+                feedback.textContent = "ざんねん！もういちど考えてみてね！";
+                feedback.className = "text-[11px] font-bold text-rose-500 mt-1 block animate-bounce";
+            }
+        }
+
+        function initLeafletRouteMap(spots) {
+            if (!spots || spots.length === 0) return;
+
+            const mapContainer = document.getElementById('course-map');
+            if (!mapContainer) return;
+
+            if (mapInstance) {
+                mapInstance.remove();
+                mapInstance = null;
+            }
+
+            const centerLat = spots[0].lat;
+            const centerLng = spots[0].lng;
+
+            mapInstance = L.map('course-map').setView([centerLat, centerLng], 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(mapInstance);
+
+            mapMarkersGroup = L.layerGroup().addTo(mapInstance);
+
+            const latLngs = [];
+
+            spots.forEach((spot, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === spots.length - 1;
+                const color = isFirst ? '#10b981' : (isLast ? '#f59e0b' : '#4f46e5');
+
+                const customIcon = L.divIcon({
+                    className: 'custom-leaflet-marker',
+                    html: `<div style="background-color: ${color}; color: white; width: 28px; height: 28px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const marker = L.marker([spot.lat, spot.lng], { icon: customIcon })
+                    .bindPopup(`<strong>${idx + 1}. ${spot.name}</strong><br>${spot.desc}`);
+
+                mapMarkersGroup.addLayer(marker);
+                latLngs.push([spot.lat, spot.lng]);
+            });
+
+            if (latLngs.length > 1) {
+                mapPolyline = L.polyline(latLngs, {
+                    color: '#6366f1',
+                    weight: 4,
+                    dashArray: '6, 8',
+                    opacity: 0.8
+                }).addTo(mapMarkersGroup);
+
+                mapInstance.fitBounds(mapPolyline.getBounds(), { padding: [30, 30] });
+            }
+
+            updateUserPinOnMap();
+        }
+
+        function updateUserPinOnMap() {
+            if (!mapInstance || !userPos) return;
+
+            if (userMarker) {
+                mapMarkersGroup.removeLayer(userMarker);
+            }
+
+            const userIcon = L.divIcon({
+                className: 'pulse-user-pin',
+                html: `<div style="background-color: #ec4899; color: white; width: 34px; height: 34px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 0 14px rgba(236,72,153,0.9);">🧍</div>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 17]
+            });
+
+            userMarker = L.marker([userPos.lat, userPos.lng], { icon: userIcon })
+                .bindPopup(`<strong>現在地</strong><br>GPS精度: ±${userPos.accuracy}m`);
+
+            mapMarkersGroup.addLayer(userMarker);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('course-modal');
+            const container = document.getElementById('modal-container');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-100');
+            container.classList.add('scale-95');
+        }
+
+        function updateClearedStats() {
+            document.getElementById('total-courses-count').textContent = coursesData.length;
+        }
+    </script>
+</body>
+</html>
